@@ -1,3 +1,19 @@
+---
+title: "First Lasso experiments"
+output:
+  html_notebook: default
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+---
+
+Set.seed was set to 4 to make results reproducable 
+
+
+```{r echo=FALSE}
+#prerun this please: code_below is full gitcode from 'heiko_wolfgang_code_test.R"
+
 {
   {
 library(magrittr)
@@ -195,7 +211,7 @@ library(kwb.flusshygiene)
   
   data <- na.omit(data)
   
-  data <- data %>% filter(log_e.coli > log10(15)) #why-heiko? genauigkeit test?
+  data <- data %>% filter(log_e.coli > log10(15)) #why-heiko?
   
   
   #Definition of models
@@ -274,12 +290,12 @@ library(kwb.flusshygiene)
     fit_lasso_base_stand <- glmnet(train_sparse, data$log_e.coli , na.rm =T, standardize = T, alpha = 1,relax = F)
     fit_lasso_base_cross_stand <- cv.glmnet(train_sparse, data$log_e.coli,type.measure="mse", alpha=1, family="gaussian",  nfolds = 3,standardize = T,relax = F)#--> alpha =1:  lasso regressio
     
-    par(mfrow=c(2,2))
-    plot(fit_lasso_base, xvar="lambda", label = T, main = "lasso_base")
-    plot(fit_lasso_base_cross,main="LASSO")
+    #par(mfrow=c(2,2))
+    #plot(fit_lasso_base, xvar="lambda", label = T, main = "lasso_base")
+    #plot(fit_lasso_base_cross,main="LASSO")
     
-    plot(fit_lasso_base_stand, xvar="lambda", label = T, main = "lasso_base_stand")
-    plot(fit_lasso_base_cross_stand,main="LASSO")
+    #plot(fit_lasso_base_stand, xvar="lambda", label = T, main = "lasso_base_stand")
+    #plot(fit_lasso_base_cross_stand,main="LASSO")
     
     #plot(fit_elnet_base, xvar="lambda", label = T, main = "elnet_base")
     #plot(fit_elnet_base_cross,main="elnet")
@@ -371,9 +387,9 @@ library(kwb.flusshygiene)
       }
     }
     list_lasso
-    print(paste(length(list_lasso)," new models added")) 
+    #print(paste(length(list_lasso)," new models added")) 
     model_lsit<-list()
-    list_lasso
+    #list_lasso
     #builded linear model
     heiko_lm_1<-lm(list_lasso[[1]], data = data)
     heiko_lm_2<-lm(list_lasso[[2]],data=data)
@@ -418,7 +434,7 @@ library(kwb.flusshygiene)
                              
                              direction = "forward",
                              
-                             list(lower=null, upper=full), steps = i)   
+                             list(lower=null, upper=full), steps = i, trace=FALSE)   
       
       
       fmla[[i]] <- as.list(selection[[i]]$call)$formula
@@ -458,8 +474,8 @@ library(kwb.flusshygiene)
 #fb[6] <- list(heiko_lm)
   
   #selection[6] <- list(heiko_lm)
-  selection
-  fb
+  #selection
+  #fb
   
   fmla_heiko_1 <-eval(heiko_lm_1$call$formula)
   fmla_heiko_2 <-eval(heiko_lm_2$call$formula)
@@ -474,7 +490,7 @@ library(kwb.flusshygiene)
   # as.list(selection[[6]]$call)$formula
   
   fmla<-append(fmla, fmla_heiko)
-  fmla
+  #fmla
   if(class(fmla[[length(fmla)]]) !="formula"){
     print("new element is no formula!!")
   }
@@ -517,7 +533,7 @@ library(kwb.flusshygiene)
   #fertig als n steps
   
   #heiko add fb beforehand to this
-  fb
+  #fb
   unique_index <- length(unique(fb))
   fb <- fb[1:unique_index]
   
@@ -567,7 +583,7 @@ library(kwb.flusshygiene)
   counter<-0
   
   #fb<-fb[-6]
-  names(fb)
+  #names(fb)
 }
 
   for(i in names(fb)){
@@ -578,6 +594,8 @@ library(kwb.flusshygiene)
        #   j=1
     
       
+      
+        
         training <- as.data.frame(fb[[i]]$model)[c(train_rows[[j]]),]
         #training <- as.data.frame(fb[[6]]$model)[c(train_rows[[1]]),]
         test <- as.data.frame(fb[[i]]$model)[-c(train_rows[[j]]),]
@@ -589,7 +607,7 @@ library(kwb.flusshygiene)
         
         
         
-        fit <- rstanarm::stan_glm(fmla[[i]], data = training ) #fitting
+        fit <- rstanarm::stan_glm(fmla[[i]], data = training, refresh=0) #fitting #suppress print out with refresh =0
         #fit <- rstanarm::stan_glm(fmla[[1]], data = training) #fitting
        
         
@@ -653,39 +671,26 @@ library(kwb.flusshygiene)
     
     dplyr::arrange(desc(in50), desc(R2))
   
-  river_stat_tests
-  sorted_modellist
+  #river_stat_tests
+  #sorted_modellist
   
   best_valid_model_stats <- sorted_modellist[1,]
   
   best_valid_model <- fb[[best_valid_model_stats$model]]
   
-  coef(best_valid_model)
+  #coef(best_valid_model)
   
   
   #refit best model
-  stanfit <- rstanarm::stan_glm(fmla[[best_valid_model_stats$model]],
+  #stanfit <- rstanarm::stan_glm(fmla[[best_valid_model_stats$model]],
                                 
-                                data = best_valid_model$model)
+   #                             data = best_valid_model$model, refresh=0)
   
-  brmsfit <- brms::brm(fmla[[best_valid_model_stats$model]],
+  #brmsfit <- brms::brm(fmla[[best_valid_model_stats$model]],
                        
-                       data = best_valid_model$model, iter = 10000)
+ #                      data = best_valid_model$model, iter = 10000)
   
   
-  
-  
-  best_valid_model
-  par(mfrow = c(1,1))
-  plot(predict(best_valid_model),data$log_e.coli,
-       xlab="predicted",ylab="actual")
-  abline(a=0,b=1)
-  par(mfrow = c(2,2))
-  plot((best_valid_model))
-  
- 
-  
- 
   
   #return(list(sorted_modellist = sorted_modellist,
               
@@ -697,5 +702,74 @@ library(kwb.flusshygiene)
   
   
   
+
+
+
+```
+
+The used data is from river 'Havel': "/Data_preprocess/Daten_TestPackage_Berlin/Havel/DATA_preprocessed_csv" 
+
+It is taken from the data folder provided by Wolfgang and has the following structure
+
+```{r}
+glimpse(data)
+```
+
+The prebuild list of 31 averaged variables/features are increased through interactions between each other. This is done  by building all interaction formulars with "formula(paste(part1," ~ (.)^2") " So every feature besides e.coli will be multiplied with every other feature which leads to 466 features from which the Lasso-algorithms are selecting the most important.
+
+here is an insight of the last 50 formulas
+```{r}
+ tail(get_formula_variable_names(form,data), 50)
+```
+
+The features are getting selected through the lasso algorithm with cross validation without (1.row - graphs below) or with (2.row - graphs below) internal standardization of the features 
+
+The following 4 graphs show the the number of selected features (upper scale) dependend on log lambda (lower scale)
+The left dotted line shows the lambda with the minimal MSE -  identified throug cross-validation
+The right dotted line shows the lambda 1 standard deviation away from the with the minimal MSE -  identified throug cross-validation (shall give a better generalization than minimum mse)
+```{r}
+ par(mfrow=c(2,2))
+    plot(fit_lasso_base, xvar="lambda", label = T, main = "lasso_base")
+    plot(fit_lasso_base_cross,main="LASSO")
+    
+    plot(fit_lasso_base_stand, xvar="lambda", label = T, main = "lasso_base_stand")
+    plot(fit_lasso_base_cross_stand,main="LASSO")
+```
+Selected coefficients with lambda-1se for lasso base cross
+```{r}
+get_coef_1se_cv(fit_lasso_base_cross)$name
+
+```
+Selected coefficients with lambda-1se for lasso base cross standardized
+```{r}
+get_coef_1se_cv(fit_lasso_base_cross_stand)$name
+
+```
+
+9 different models were build in the very first code snippet (suppressed in html but visible in notebook):
+- 5 from stepwise regression, with 1-5 explanatory variables (choosen with Information Criterion)
+- 4 Lasso based models:
+
+  from the two cross validated lasso fits: fit_lasso_base_cross and fit_lasso_base_cross_stand (with internal standardization of features) I used lambda min and lambda-1se to get 4 lasso based models with the following modelnumbers:
+  06: fit_lasso_base_cross lambda-1se
+  07: fit_lasso_base_cross_stand lambda-1se
+  08: fit_lasso_base_cross lambda-min
+  09: fit_lasso_base_cross_stand lambda-min
+
+The 4 Lasso based models were than used in the posterior function for validation. If in50, below90, below95, and in 95 are all == 5 --> the model is validated through the validation method from wolfgang.
+
+The best Model was chosen by further checking statistical correctness and sorting R2 in descending order.
+
+
+```{r}
+sorted_modellist 
+```
+Whats interesting is, that only the standardized models (07  & 09) were able to beat the stepwise builded models  with this evaluation method.
+
+Best Model here is havelmodel_09 with the following coefficients:
+```{r}
+names(coef(best_valid_model))
+```
+
 
 
