@@ -1,4 +1,6 @@
-{library(magrittr)
+{
+  {
+library(magrittr)
 library(dplyr)
 library(glmnet)
 library(purrr)
@@ -193,7 +195,7 @@ library(kwb.flusshygiene)
   
   data <- na.omit(data)
   
-  data <- data %>% filter(log_e.coli > log10(15)) #why-heiko?
+  data <- data %>% filter(log_e.coli > log10(15)) #why-heiko? genauigkeit test?
   
   
   #Definition of models
@@ -261,7 +263,9 @@ library(kwb.flusshygiene)
     #testing_heiko<-data[-fold1,]
     
    # test_sparse <- sparse.model.matrix(testing_heiko$log_e.coli~., testing_heiko[,3:ncol(testing_heiko)]) #data must be dataframe
-    
+    set.seed(4)
+
+    {        
     fit_lasso_base <- glmnet(train_sparse, data$log_e.coli , na.rm =T, standardize = F, alpha = 1,relax = F)
     
     fit_lasso_base_cross <- cv.glmnet(train_sparse, data$log_e.coli,type.measure="mse", alpha=1, family="gaussian",  nfolds = 3,standardize = F,relax = F)#--> alpha =1:  lasso regressio
@@ -286,10 +290,11 @@ library(kwb.flusshygiene)
     
     
     get_feature_selection_coeficient_names_as_formular_1se <- function(algorithm_list){
+      #fit_lasso_base_cross
+      #algorithm_list<-fit_lasso_base_cross
       coef_1se<- get_coef_1se_cv(algorithm_list)
       if(dim(coef_1se)[1]==1){
         print("only intercept. nothing to model")
-        
       }else{
             coef_name_lambda_1se<-coef_1se$name[-1]
       #a<-str("")
@@ -311,22 +316,75 @@ library(kwb.flusshygiene)
       formula_from_selector<-formula(formel)
       return(formula_from_selector)
     }  
+   
+    coef_1se_fit_lasso_base_cross<-get_coef_1se_cv (fit_lasso_base_cross)
+    coef_1se_fit_lasso_base_cross_stand<-get_coef_1se_cv (fit_lasso_base_cross_stand)
+    coef_lambda_min_fit_lasso_base_cross<-get_coef_min_cv (fit_lasso_base_cross)
+    coef_lambda_min_fit_lasso_base_cross_stand<-get_coef_min_cv (fit_lasso_base_cross_stand)
+    
+ # add_new_formulas_to_list_if_exists <- function(coef_list){
+    
+#    if(exists("coef_1se_fit_lasso_base_cross")== TRUE){
+ #     idx <- length(list_lasso)
+  #    idx <- idx+1
+  #    list_lasso[[idx]] <-coef_1se_fit_lasso_base_cross
+  #  }
+  #}
+        
+    list_lasso <- list()
+    
     coef_1se_fit_lasso_base_cross               <-get_feature_selection_coeficient_names_as_formular_1se(fit_lasso_base_cross)
+    
+    if(exists("coef_1se_fit_lasso_base_cross")== TRUE){
+      idx <- length(list_lasso)
+      idx <- idx+1
+      list_lasso[[idx]] <-coef_1se_fit_lasso_base_cross
+    }
     coef_1se_fit_lasso_base_cross_stand         <-get_feature_selection_coeficient_names_as_formular_1se(fit_lasso_base_cross_stand)
+    if(exists("coef_1se_fit_lasso_base_cross_stand")== TRUE){
+      idx <- length(list_lasso)
+      idx <- idx+1
+      list_lasso[[idx]] <-coef_1se_fit_lasso_base_cross_stand
+    }
+    
     coef_lambda_min_fit_lasso_base_cross        <-get_feature_selection_coeficient_names_as_formular_lambda_min(fit_lasso_base_cross)
+    if(exists("coef_lambda_min_fit_lasso_base_cross")== TRUE){
+      idx <- length(list_lasso)
+      idx <- idx+1
+      list_lasso[[idx]] <-coef_lambda_min_fit_lasso_base_cross
+    }
+    
     coef_lambda_min_fit_lasso_base_cross_stand  <-get_feature_selection_coeficient_names_as_formular_lambda_min(fit_lasso_base_cross_stand)
-  
+    if(exists("coef_lambda_min_fit_lasso_base_cross_stand")== TRUE){
+      idx <- length(list_lasso)
+      idx <- idx+1
+      list_lasso[[idx]] <-coef_lambda_min_fit_lasso_base_cross_stand
+    }
     
-    list_lasso<-list(coef_1se_fit_lasso_base_cross,
-    coef_1se_fit_lasso_base_cross_stand,
-    coef_lambda_min_fit_lasso_base_cross,
-    coef_lambda_min_fit_lasso_base_cross_stand)
+    #check if all 4 coefficients exist and remove intercepts
+    idx <-0
+    for(element in list_lasso){
+      idx<-idx+1
+      if(typeof(element)!="language"){
+        list_lasso <- list_lasso[-idx]
+        print("f")
+      }
+    }
+    list_lasso
+    print(paste(length(list_lasso)," new models added")) 
     model_lsit<-list()
-    
+    list_lasso
+    #builded linear model
     heiko_lm_1<-lm(list_lasso[[1]], data = data)
     heiko_lm_2<-lm(list_lasso[[2]],data=data)
     heiko_lm_3<-lm(list_lasso[[3]],data=data)
     heiko_lm_4<-lm(list_lasso[[4]],data=data)
+    
+    list_heiko_lm <- list()
+    list_heiko_lm[[1]]<- heiko_lm_1
+    list_heiko_lm[[2]]<- heiko_lm_2
+    list_heiko_lm[[3]]<- heiko_lm_3
+    list_heiko_lm[[4]]<- heiko_lm_4
     #for(form in list_lasso){
       
      # heiko_lm <- lm(form, data = data)
@@ -394,8 +452,9 @@ library(kwb.flusshygiene)
   
   
 #adding new linear models, featureselection with lasso/elnet
-selection<-append(selection, list(heiko_lm_1,heiko_lm_2,heiko_lm_3,heiko_lm_4))
-fb<- selection  
+#selection<-append(selection, list(heiko_lm_1,heiko_lm_2,heiko_lm_3,heiko_lm_4))
+  selection<-append(selection, list_heiko_lm)
+  fb<- selection  
 #fb[6] <- list(heiko_lm)
   
   #selection[6] <- list(heiko_lm)
@@ -406,9 +465,15 @@ fb<- selection
   fmla_heiko_2 <-eval(heiko_lm_2$call$formula)
   fmla_heiko_3 <-eval(heiko_lm_3$call$formula)
   fmla_heiko_4 <-eval(heiko_lm_4$call$formula)
+  
+  fmla_heiko <- list()
+  fmla_heiko[[1]]<- fmla_heiko_1
+  fmla_heiko[[2]]<- fmla_heiko_2
+  fmla_heiko[[3]]<- fmla_heiko_3
+  fmla_heiko[[4]]<- fmla_heiko_4
   # as.list(selection[[6]]$call)$formula
   
-  fmla<-append(fmla, list(fmla_heiko_1,fmla_heiko_2,fmla_heiko_3,fmla_heiko_4))
+  fmla<-append(fmla, fmla_heiko)
   fmla
   if(class(fmla[[length(fmla)]]) !="formula"){
     print("new element is no formula!!")
@@ -513,8 +578,6 @@ fb<- selection
        #   j=1
     
       
-      
-        
         training <- as.data.frame(fb[[i]]$model)[c(train_rows[[j]]),]
         #training <- as.data.frame(fb[[6]]$model)[c(train_rows[[1]]),]
         test <- as.data.frame(fb[[i]]$model)[-c(train_rows[[j]]),]
@@ -526,7 +589,7 @@ fb<- selection
         
         
         
-        fit <- rstanarm::stan_glm(fmla[[i]], data = training) #fitting
+        fit <- rstanarm::stan_glm(fmla[[i]], data = training ) #fitting
         #fit <- rstanarm::stan_glm(fmla[[1]], data = training) #fitting
        
         
@@ -579,12 +642,11 @@ fb<- selection
       
   } 
   
-fmla
+#fmla
 
-
+}  
   
-  
-  
+}  
   sorted_modellist <- river_stat_tests %>%
     
     filter( below95 == 5 & below90 == 5& in95) %>%
@@ -598,7 +660,7 @@ fmla
   
   best_valid_model <- fb[[best_valid_model_stats$model]]
   
-  
+  coef(best_valid_model)
   
   
   #refit best model
@@ -612,13 +674,26 @@ fmla
   
   
   
-  return(list(sorted_modellist = sorted_modellist,
+  
+  best_valid_model
+  par(mfrow = c(1,1))
+  plot(predict(best_valid_model),data$log_e.coli,
+       xlab="predicted",ylab="actual")
+  abline(a=0,b=1)
+  par(mfrow = c(2,2))
+  plot((best_valid_model))
+  
+ 
+  
+ 
+  
+  #return(list(sorted_modellist = sorted_modellist,
               
-              best_model = best_valid_model,
+   #           best_model = best_valid_model,
               
-              stanfit = stanfit,
+    #          stanfit = stanfit,
               
-              brmsfit = brmsfit))
+     #         brmsfit = brmsfit))
   
   
   
