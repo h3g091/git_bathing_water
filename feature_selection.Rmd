@@ -1,0 +1,1593 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+```{r include=FALSE}
+#check random forest
+#for new river instanziere this
+river_stat_model_save <- data.frame()
+river_fmla_save <-list()
+river_fb_save <-data.frame()
+error_df_algorithms_save<- data.frame(5)
+rf_var_df_save <- data.frame(5)
+step_var_df_save<- data.frame(5)
+
+lasso_var_lambda_1se_save <- data.frame(5)
+elnet_var_lambda_1se_save <- data.frame(5)
+lasso_var_lambda_min_save <- data.frame(5)
+elnet_var_lambda_min_save<- data.frame(5)
+{    #preload packages
+  {
+    library(caret)
+    library(magrittr)
+    library(randomForest)
+    library(dplyr)
+    library(glmnet)
+    library(purrr)
+    library(tidyverse)
+    #?glmnet
+    library(coefplot) #for extracing non 0 coef
+    #install.packages("tidyverse")
+    library(tidyverse)
+    library(pROC)
+    library(fhpredict)
+    library(tidyverse)
+    library(Boruta)
+    
+    library(kwb.flusshygiene)
+  }
+  {
+    
+    first_time_model_train <- 1
+    
+    rivers <- c("havel")
+    river <- "havel"
+    #river_paths <- kwb.flusshygiene::get_paths()[paste0(rivers, "data")]
+    
+    #river_paths <- list(havel = "Y:/SUW_Department/Projects/FLUSSHYGIENE/Data-Work packages/Daten/Daten_TestPackage_Berlin/Havel/DATA_preprocessed_csv")
+    
+    #river_paths <- list(havel = "/Users/heiko.langer/Masterarbeit_lokal/Data_preprocess/Daten_TestPackage_Berlin/Havel/DATA_preprocessed_csv" )
+    river_paths <- list(havel = "/Users/heiko.langer/Masterarbeit_lokal/Data_preprocess/Daten_Bayern/Isar/DATA_preprocessed_csv")
+    
+  }
+  river_data <- lapply(river_paths, kwb.flusshygiene::import_riverdata)
+  
+  #river <- "Isar"
+  
+  names(river_data) <- rivers
+  
+  #if (FALSE)
+  #turn to False if not wanted   
+  #set.seed(5)
+  get_coef_1se_cv <- function(df){
+    tmp_coeffs <- coef(df, s = "lambda.1se")
+    a <- data.frame(name = tmp_coeffs@Dimnames[[1]][tmp_coeffs@i + 1], coefficient = tmp_coeffs@x)
+    return(a)
+  }
+  get_coef_min_cv <- function(df){
+    tmp_coeffs <- coef(df, s = "lambda.min")
+    a <- data.frame(name = tmp_coeffs@Dimnames[[1]][tmp_coeffs@i + 1], coefficient = tmp_coeffs@x)
+    return(a)
+  }
+  
+  
+  
+  get_coef_fixed_lambda <- function(df,lambda){
+    tmp_coeffs <- coef(df, s = lambda)
+    a <- data.frame(name = tmp_coeffs@Dimnames[[1]][tmp_coeffs@i + 1], coefficient = tmp_coeffs@x)
+    return(a)
+  }
+  
+  
+  
+  get_formula_variable_names <- function(formula_a,df){ 
+    mf <- model.frame(formula_a, data=df)
+    mt <- attr(mf, "terms")
+    predvarnames <- attr(mt, "term.labels")
+    predvarnames
+  }
+  limit_max_features <- function(fmla_list, data = data_train){
+    for (formla in 1:length(fmla_list)) {
+      #formla = 3
+      #fmla_list<- list_lasso
+      if((length(all.vars(fmla_list[[formla]]))-1)> floor(nrow(data)/2)){ 
+        fmla_list <- fmla_list[-formla]
+        print("fmla remove because of two many features compared to datapoint")
+      }
+      return(fmla_list)
+    }
+  }
+  get_feature_selection_coeficient_names_as_formular_1se <- function(algorithm_list){
+    #fit_lasso_base_cross
+    #algorithm_list<-fit_lasso_base_cross
+    coef_1se<- get_coef_1se_cv(algorithm_list)
+    if(dim(coef_1se)[1]==1){
+      print("only intercept. nothing to model")
+    }else{
+      coef_name_lambda_1se<-coef_1se$name[-1]
+      #a<-str("")
+      coefficients<-paste(coef_name_lambda_1se, collapse = " + " )
+      
+      formel<-paste("log_e.coli ~ ", coefficients)
+      formel
+      formula_from_selector<-formula(formel)
+    }
+    return(formula_from_selector)
+  }
+  get_feature_selection_coeficient_names_as_formular_lambda_min <- function(algorithm_list){
+    #algorithm_list<-fit_lasso_base_cross
+    coef_lambda_min<- get_coef_min_cv(algorithm_list)
+    coef_name_lambda_min<-coef_lambda_min$name[-1]
+    #a<-str("")
+    coefficients<-paste(coef_name_lambda_min, collapse = " + " )
+    formel<-paste("log_e.coli ~ ", coefficients)
+    formula_from_selector<-formula(formel)
+    return(formula_from_selector)
+  } 
+  #lasso
+  #build/integrate here into folds to train with same cross validation
+  #fold1<-train_rows[[1]]
+  
+  #training_heiko<-data[fold1,]
+  
+  calc_t <- function (datalist=river_data$havel, onlysummer) {
+    #heiko
+    #datalist<- river_data1$havel
+    phy_data <- datalist[-1] # Entfernung der Hygienedaten
+    
+    if(onlysummer==T){
+      hyg_df <- subset(datalist[[1]],
+                       subset = lubridate::month(datum) %in% 5:9) # Filtern nach Sommer, warum hier 5:9 und beim anderen 4:9?
+      
+      data_summer <- lapply(phy_data, function(df){
+        
+        df <- subset(df, subset = lubridate::month(datum) %in% 4:9) 
+      }
+      )
+    }  
+    
+    
+    # z_standardize <- function (x) {
+    
+    #   y = (x - mean(x, na.rm=T))/sd(x, na.rm=T)
+    
+    # }
+    
+    log_transorm_rain <- function(df) { #log transforming rain data
+      
+      for (site in names(df)[-1]) { # every col gets treatment
+        
+        df2 <- subset(df, select = c("datum", site))
+        
+        if (grepl("^r_.*",site)) { # rain gets log-transformed and 1/sigma2
+          
+          df2[[site]] <- log(df2[[site]]+1)
+          
+          # df2[[site]] <- df2[[site]]/sd(df2[[site]], na.rm=T)
+          
+        } #else {
+        
+        #   df[[site]] <- z_standardize(df2[[site]]) # standardize
+        
+        # }
+        
+        df[[site]] <- df2[[site]]
+        
+      }
+      
+      return(df)
+      
+    }
+    
+    data_t <- lapply(data_summer, log_transorm_rain)
+    
+    result <- append(list(hyg_df), data_t)
+    
+    names(result) <- names(datalist)
+    
+    return(result)
+    
+  }
+  ### Anwenden von calc_t auf Inputliste
+  
+  river_data_ts <- lapply(river_data, function(river_list){
+    
+    river_ts <- calc_t(river_list, onlysummer = T) # use function
+    
+    add_meancol <- function (df) { # for rain and i #edit: + ka #2ndedit: + q
+      
+      prefix <- unique(sub("([a-z])_.*","\\1",names(df)[-1]))
+      
+      for (pre in prefix) {
+        
+        df2 <- dplyr::select(df, dplyr::starts_with(pre))
+        
+        df[,paste0(pre,"_mean")] <- rowMeans(df2, na.rm=T)
+        
+      }
+      
+      
+      
+      return(df)
+      
+    }
+    
+    add_sumcol <- function (df) { # originally for ka, but not used
+      
+      prefix <- unique(sub("([a-z])_.*","\\1",names(df)[-1]))
+      
+      if (length(df) > 2)
+        
+        df[,paste0(prefix,"_sum")] <- rowSums(df[,-1], na.rm=T)
+      
+      return(df)
+      
+    }
+    
+    
+    
+    q_pos <- grep("^q", names(river_ts)[-1])+1
+    
+    
+    if (length(q_pos) == 1)
+      
+      river_ts[[q_pos]] <- add_meancol(river_ts[[q_pos]])
+    
+    ka_pos <- grep("^ka", names(river_ts)[-1])+1
+    
+    if (length(ka_pos) == 1)
+      
+      river_ts[[ka_pos]] <- add_meancol(river_ts[[ka_pos]])
+    
+    i_pos <- grep("^i", names(river_ts)[-1])+1
+    
+    if (length(i_pos) == 1)
+      
+      river_ts[[i_pos]] <- add_meancol(river_ts[[i_pos]])
+    
+    r_pos <- grep("^r", names(river_ts)[-1])+1
+    
+    river_ts[[r_pos]] <- add_meancol(river_ts[[r_pos]])
+    
+    return(river_ts)
+    
+  })  
+}
+stepwise <- function (river, pattern, data1, null1, full1 ){
+  # Definition maximum number of steps
+  
+  nsteps <- 5 #ifelse(round(nrow(data)/10) < 10, round(nrow(data)/10), 5 )
+  
+  selection <- list()
+  
+  fmla <- list()
+  
+  
+  
+  # Creating list of candidate models with 1 ...n predictors 
+  #split up this piece in stpe and new algorithms/formulars
+  
+  for(i in 1: nsteps){
+    
+    
+    
+    selection[[i]] <- step(null1, data = data1,
+                           
+                           direction = "forward",
+                           
+                           list(lower=null1, upper=full1), steps = i)   
+    
+    
+    fmla[[i]] <- as.list(selection[[i]]$call)$formula
+    
+    
+    
+  }
+  
+  #heiko_add_formular to fmla list function function
+  #selection[[6]] <- heiko_lm
+  #fmla[[6]] <- as.list(selection[[6]]$call)$formula
+  step_returns <- list(fmla, selection)
+  return(step_returns)
+  
+}
+
+
+#run here
+#for (iterations in 1:10) {
+  iterations <-2
+  new_train_test_split <-T
+  random_number <- set.seed(iterations)
+
+  #rm(river_data,calc_t)
+  
+  #river = "havel"
+  pattern = "(i_mean|q_mean_mean|r_mean_mean|ka_mean_mean)"
+  
+  #pattern = "(i_mean|ka_mean_mean|q_mean_mean|r_mean_mean)"
+  riverdata <- river_data_ts[[river]]
+  
+  # prepare variables out of all cominations (given by pattern)
+  
+  # variables for interaction get replaced by q_new (remove q_old)
+  
+  vars1 <- (riverdata[-1] %>% unroll_physical_data() %>%
+              
+              lapply(names) %>% unlist() %>% unique())[-1]
+  
+  vars2 <- vars1[stringr::str_detect(vars1, pattern)]
+  
+  
+  
+  # prepare formulas
+  
+  data <- process_model_riverdata(riverdata, c("log_e.coli", vars2)) %>%
+    
+    dplyr::select(-datum) 
+  
+  data <- na.omit(data)
+  
+  data <-data.frame(scale(data))
+  
+  #train/test split for datavalidation
+  train_index <- sample(1:nrow(data), 0.8 * nrow(data))
+  test_index <- setdiff(1:nrow(data), train_index)
+  
+  data_train<-data[train_index,]
+  data_test <- data[test_index,]
+  #stepwise models
+  null <- lm(log_e.coli ~ 1, data = data_train) #model with only 1 variable
+  
+  full <- lm(log_e.coli ~ .^2, data = data_train)
+
+  
+  
+
+
+    
+    
+    
+    bacteria<-names(data_train)[1]
+    form<-formula(paste(bacteria," ~ .^2"))
+    
+  
+    test_rows <- list()
+    datapoints<-seq(1, nrow(data_train))
+    paste_together_step_coefficients<-function(var_step_model_function ){
+      #var_step_model_function <- var_step_model_3
+      #var_step_model_function[1:3]
+      #var_step_model_function <- var_step_model_function[[2:length(var_step_model_function)]]
+      formel<- var_step_model_function[[1]]
+      
+      if(length(var_step_model_function)> 1){
+        for (entry in 2:length(var_step_model_function)) {
+          
+          formel<-paste(formel, var_step_model_function[entry], sep = " + ")
+          
+        }
+      }
+      return(formel)
+    } 
+    #foldid
+    if(new_train_test_split ==T){
+      train_rows <- list()
+      foldid=sample(rep(seq(5),length=nrow(data_train)))  #fixes the train/test for cv.glmnet
+      train_rows<- list()
+      for (fold in 1:5) {
+        train_rows[[fold]]<-datapoints[foldid!=fold]  
+      }
+    }
+    
+    #data
+    train <- model.matrix(full, data_train)
+    df_with_all_variable_names <-train
+
+    train_sparse <- sparse.model.matrix(full, data_train) #data must be dataframe
+    
+
+        
+          
+        
+          #instanzieren variables
+          elnet_var_lambda_1se<-lasso_var_lambda_1se<-elnet_var_lambda_min<-lasso_var_lambda_min<-data.frame()
+          rf_var_df<-step_var_df <- data.frame(5)
+          
+          
+          r2_list_step_1<-r2_list_step_2<-r2_list_step_3<-r2_list_step_4<-r2_list_step_5<-r2_list_rf_1<-r2_list_rf_2<-r2_list_rf_3<-r2_list_rf_4<-r2_list_rf_5<-mse_list_rf_1<-mse_list_rf_2<-mse_list_rf_3<-mse_list_rf_4<-mse_list_rf_5<-mse_list_step_1<-    mse_list_step_2<-    mse_list_step_3<-    mse_list_step_4<-    mse_list_step_5 <-mse_list_rf <- list()
+          
+          prediction_and_mse<- function(model1, test1, test_bacteria1){
+            #model1<-rf_model_1
+            #rf_formula_1
+            
+            #step_model_1
+            #test_bacteria1 = test_bacteria
+            #test1 = test
+            #test_bacteria = test_bacteria
+            
+            prediction<- predict(object = model1, newdata = test1)
+            return(mean(sqrt((test_bacteria1 - prediction)^2)))
+          }
+          
+          calc_n_features <- function(df){
+            #df<-step_df_1_coef_save 
+            if(ncol(df)== 4){
+              u <- 1
+            }else{ 
+            u <- rowSums(df[,-c((ncol(df)),(ncol(df)-1),(ncol(df)-2))])
+            }
+            df$n_features<- u
+            return(df)
+          }
+          build_formula <- function( feature_list,bacteria = "log_e.coli~ " ){
+            #feature_list<-imp_rf[1,2]
+            formel <- feature_list[1]
+            #formel1 <- feature_list[1,]
+            if(length(feature_list)>1){
+              for (idx in 2: length(feature_list)) {
+                #element<-feature_list[2,]
+                formel <- paste(formel, feature_list[[idx]], sep=" + ")
+              }
+            }  
+            formel_with_bacteria<- as.formula(paste(bacteria, formel, sep=""))
+            formellsit<-c(formel_with_bacteria,formel)
+            
+            return(formellsit)
+          }
+        
+          get_new_iteration_row<-function(df_save,var_list){
+            #df_save<-rf_df_1_coef
+            #var_list<- rf_formula_11
+            #df_save<-step_df_5_coef
+            #names(df_save)<- names(rf_df_2_coef)
+            #  var_list <-var_rf_model_3
+            #var_list<-var_step_model_5
+            #var_list<-var_rf_model_5
+           #all(sapply(var_list, is.character))
+            #df_save<-lasso_df_3_coef
+            #var_list<-unique_lasso_formulas_coef_3
+            
+            
+            
+            o<-var_list #adds the formula
+            
+            if(all(sapply(var_list, is.character))==F){
+              o<- o[[2]][1]
+            }
+            
+            new_row <- data.frame(matrix(0, ncol = length((colnames(df_with_all_variable_names)))+2, nrow = 1))
+            colnames(new_row)<- colnames(df_with_all_variable_names)
+            new_row[ncol(new_row)-1] <- o
+            names(new_row)[length(names(new_row))-1]<-"formel"
+            new_row[ncol(new_row)] <- j
+            names(new_row)[length(names(new_row))]<-"split_id"
+            #check for variables
+            a<-strsplit( o, split = " \\+ ")
+            
+            #add a 1 in var_column if formula contains variable
+            for (idx in 1:length(a[[1]])) {
+                  #idx = 3
+                  if(grepl(':',a[[1]][idx] )){ #sometimes, step changes order of variables with interaction
+                    string1<-a[[1]][idx]
+                    new_string_list<-str_split(string1,":")
+                    string2 <- paste(new_string_list[[1]][2],new_string_list[[1]][1], sep = ":")
+                    i<-paste("^",string1, "$", sep = "")
+                    j<-paste("^",string2, "$", sep = "")
+                    indx1 <- grepl(i, colnames(df_save))
+                    indx2 <- grepl(j, colnames(df_save))
+                    new_row[1,indx1]=1
+                    new_row[1,indx2]=1
+                    
+                  }else{
+                    i<-paste("^",a[[1]][idx], "$", sep = "")
+                    
+                    indx <- grepl(i, colnames(df_save))
+                    #   any(indx)
+                    new_row[1,indx]=1
+                  }
+                  
+            }
+            
+            #select(new_row,q_mean_mean_12, ka_mean_mean_45, ka_mean_mean_34,'ka_mean_mean_45:q_mean_mean_12')
+            return(new_row)
+            
+          }
+          remove_all_cols_that_are_zero <- function(df){
+            #df<-a
+            no_zero_df<-df[,apply(df,2,function(df) !all(df==0))]
+            no_zero_df<- no_zero_df[-1,]
+            return(no_zero_df)
+          }
+          #instanzierung df for 1 iteration
+          build_rename_cols_to_variable_names <- function(df_with_all_vars){
+            df<-data.frame(matrix(0, ncol = length((colnames(df_with_all_vars)))+2, nrow = 1))
+            colnames(df)<- colnames(df_with_all_vars)
+            names(df)[length(names(df))-1]<-"formel" 
+            names(df)[length(names(df))]<-"split_id" 
+            
+            
+            return(df)
+          }
+          
+          rf_df_1_coef <- build_rename_cols_to_variable_names(df_with_all_variable_names)
+          rf_df_2_coef <- build_rename_cols_to_variable_names(df_with_all_variable_names)
+          rf_df_3_coef<- build_rename_cols_to_variable_names(df_with_all_variable_names)
+          rf_df_4_coef<- build_rename_cols_to_variable_names(df_with_all_variable_names)
+          rf_df_5_coef<- build_rename_cols_to_variable_names(df_with_all_variable_names)
+          
+          step_df_1_coef<-build_rename_cols_to_variable_names(df_with_all_variable_names)
+          step_df_2_coef<-build_rename_cols_to_variable_names(df_with_all_variable_names)
+          step_df_3_coef<-build_rename_cols_to_variable_names(df_with_all_variable_names)
+          step_df_4_coef<-build_rename_cols_to_variable_names(df_with_all_variable_names)
+          
+          #step_df_4_coef%>% select(`ka_mean_mean_45:q_mean_mean_12`)
+          
+          step_df_5_coef<-build_rename_cols_to_variable_names(df_with_all_variable_names)
+          
+          for(j in 1:5){
+          #  j=2
+            
+            train_bacteria <- data_train[train_rows[[j]],]$log_e.coli
+            train <- data_train[train_rows[[j]],-1] #without e.coli
+            train_rf <- model.matrix(form, data_train[train_rows[[j]],])
+            
+            test_bacteria <- data_train[-c(train_rows[[j]]),]$log_e.coli
+            test <- data_train[-c(train_rows[[j]]),-1]
+            test_rf <- model.matrix(form, data_train[-c(train_rows[[j]]),])
+            #train_glmnet <- model.matrix(form, train)
+            
+            #train <- model.matrix(log_e.coli~.^2, data = data)
+            #train_sparse_glmnet <- sparse.model.matrix(form, train) #data must be dataframe
+            
+            #set name for iteration
+            iteration_name<-paste("iterations", iterations,"fold",j,sep = "_")
+            
+            
+         
+          
+            null <- lm(log_e.coli ~ 1, data = data_train[train_rows[[j]],]) #model with only 1 variable
+            
+            full <- lm(log_e.coli ~ .^2, data = data_train[train_rows[[j]],])
+            
+            step_returns <- stepwise(river = river, pattern = "(i_mean|q_mean_mean|r_mean_mean|ka_mean_mean)", data = data_train[train_rows[[j]],],null, full)
+            fmla <- step_returns[[1]]
+            selection <- step_returns[[2]]
+            
+            step_model_1<-step_returns[[2]][[1]]
+            step_model_2<-step_returns[[2]][[2]]
+            step_model_3<-step_returns[[2]][[3]]
+            step_model_4<-step_returns[[2]][[4]]
+            step_model_5<-step_returns[[2]][[5]]
+            
+            
+            var_step_model_1<- names(selection[[1]]$coefficients)[-1]
+            var_step_model_2<-names(selection[[2]]$coefficients)[-1]
+            var_step_model_3<-names(selection[[3]]$coefficients)[-1]
+            var_step_model_4<-names(selection[[4]]$coefficients)[-1]
+            var_step_model_5<-names(selection[[5]]$coefficients)[-1]
+            
+            
+            
+            var_step_model_1<- paste_together_step_coefficients(var_step_model_1)
+            var_step_model_2<-paste_together_step_coefficients(var_step_model_2)
+            var_step_model_3<-paste_together_step_coefficients(var_step_model_3)
+            var_step_model_4<-paste_together_step_coefficients(var_step_model_4)
+            var_step_model_5<-paste_together_step_coefficients(var_step_model_5)
+            
+            #new row
+            
+            new_row_step_df_1_coef <- get_new_iteration_row(step_df_1_coef, var_step_model_1 )
+            new_row_step_df_2_coef <- get_new_iteration_row(step_df_2_coef, var_step_model_2 )
+            new_row_step_df_3_coef <- get_new_iteration_row(step_df_3_coef, var_step_model_3 )
+            new_row_step_df_4_coef <- get_new_iteration_row(step_df_4_coef, var_step_model_4 )
+            new_row_step_df_5_coef <- get_new_iteration_row(step_df_5_coef, var_step_model_5 )
+            #sum(new_row_step_df_5_coef==1)
+            
+            #name new column
+            row.names(new_row_step_df_1_coef) <- iteration_name
+            row.names(new_row_step_df_2_coef) <- iteration_name
+            row.names(new_row_step_df_3_coef) <- iteration_name
+            row.names(new_row_step_df_4_coef) <- iteration_name
+            row.names(new_row_step_df_5_coef) <- iteration_name
+            
+            #add new train row
+            step_df_1_coef<-rbind(step_df_1_coef, new_row_step_df_1_coef)
+            step_df_2_coef<-rbind(step_df_2_coef, new_row_step_df_2_coef)
+            step_df_3_coef<-rbind(step_df_3_coef, new_row_step_df_3_coef)
+            step_df_4_coef<-rbind(step_df_4_coef, new_row_step_df_4_coef)
+            step_df_5_coef<-rbind(step_df_5_coef, new_row_step_df_5_coef)
+            
+            #remove all columns that areonly 0
+            # coefficients that a selected from
+            step_df_1_coef_save <-remove_all_cols_that_are_zero(step_df_1_coef)
+            step_df_2_coef_save <-remove_all_cols_that_are_zero(step_df_2_coef)
+            step_df_3_coef_save <-remove_all_cols_that_are_zero(step_df_3_coef)
+            step_df_4_coef_save <-remove_all_cols_that_are_zero(step_df_4_coef)
+            step_df_5_coef_save <-remove_all_cols_that_are_zero(step_df_5_coef)
+            
+            
+            
+            
+            step_var_df_fold <- setNames(data.frame(rbind(var_step_model_1,var_step_model_2,var_step_model_3,var_step_model_4,var_step_model_5)), iteration_name)
+            step_var_df <- cbind(step_var_df,step_var_df_fold)
+  
+            
+            
+            
+            mse_step_1_fold <- prediction_and_mse(step_model_1, test1 = test, test_bacteria1 = test_bacteria)
+            mse_step_2_fold <- prediction_and_mse(step_model_2, test1 = test, test_bacteria1 = test_bacteria)
+            mse_step_3_fold <- prediction_and_mse(step_model_3, test1 = test, test_bacteria1 = test_bacteria)
+            mse_step_4_fold <- prediction_and_mse(step_model_4, test1 = test, test_bacteria1 = test_bacteria)
+            mse_step_5_fold <- prediction_and_mse(step_model_5, test1 = test, test_bacteria1 = test_bacteria)
+            
+            r2_step_model_1_fold<-summary(step_model_1)[["adj.r.squared"]]
+            r2_step_model_2_fold<-summary(step_model_2)[["adj.r.squared"]]
+            r2_step_model_3_fold<-summary(step_model_3)[["adj.r.squared"]]
+            r2_step_model_4_fold<-summary(step_model_4)[["adj.r.squared"]]
+            r2_step_model_5_fold<-summary(step_model_5)[["adj.r.squared"]]
+            
+            mse_list_step_1<- append(mse_list_step_1,mse_step_1_fold)
+            mse_list_step_2<- append(mse_list_step_2,mse_step_2_fold)
+            mse_list_step_3<- append(mse_list_step_3,mse_step_3_fold)
+            mse_list_step_4<- append(mse_list_step_4,mse_step_4_fold)
+            mse_list_step_5<- append(mse_list_step_5,mse_step_5_fold)
+            
+            r2_list_step_1<- append(r2_list_step_1,r2_step_model_1_fold )
+            r2_list_step_2<- append(r2_list_step_2,r2_step_model_2_fold )
+            r2_list_step_3<- append(r2_list_step_3,r2_step_model_3_fold )
+            r2_list_step_4<- append(r2_list_step_4,r2_step_model_4_fold )
+            r2_list_step_5<- append(r2_list_step_5,r2_step_model_5_fold )
+            
+            
+            
+            
+            
+            #rfModel<-randomForest(x=train,  y=train_bacteria, xtest = test, ytest =  test_bacteria, importance = T, keep.forest = T )
+            rfModel<-randomForest(train_rf, y = train_bacteria, na.rm =T, keep.forest = T) 
+            
+            imp_rf <- as.data.frame(varImp(rfModel, scale=T))
+            
+            imp_rf <- data.frame(overall = imp_rf$Overall,
+                                 names   = rownames(imp_rf))
+            imp_rf<-imp_rf[order(imp_rf$overall,decreasing = T),]
+            
+            
+            
+            
+            rf_formula_11<-build_formula(imp_rf[1,2])
+            rf_formula_21<-build_formula(imp_rf[1:2,2])
+            rf_formula_31<-build_formula(imp_rf[1:3,2])
+            rf_formula_41<-build_formula(imp_rf[1:4,2])
+            rf_formula_51<-build_formula(imp_rf[1:5,2])
+            
+            var_rf_model_1 <-  rf_formula_11[[2]]
+            var_rf_model_2 <- rf_formula_21[[2]]
+            var_rf_model_3 <- rf_formula_31[[2]]
+            var_rf_model_4 <- rf_formula_41[[2]]
+            var_rf_model_5 <- rf_formula_51[[2]]
+            
+           
+            #add new row for every fold
+            new_row_rf_df_1_coef <- get_new_iteration_row(rf_df_1_coef, rf_formula_11)
+            new_row_rf_df_2_coef <- get_new_iteration_row(rf_df_2_coef, rf_formula_21)
+            new_row_rf_df_3_coef <- get_new_iteration_row(rf_df_3_coef, rf_formula_31)
+            new_row_rf_df_4_coef <- get_new_iteration_row(rf_df_4_coef, rf_formula_41)
+            new_row_rf_df_5_coef <- get_new_iteration_row(rf_df_5_coef, rf_formula_51)
+           
+            iteration_name<-paste("iterations", iterations,"fold",j,sep = "_")
+            #naming_new_row
+            row.names(new_row_rf_df_1_coef) <- iteration_name
+            row.names(new_row_rf_df_2_coef) <- iteration_name
+            row.names(new_row_rf_df_3_coef) <- iteration_name
+            row.names(new_row_rf_df_4_coef) <- iteration_name
+            row.names(new_row_rf_df_5_coef) <- iteration_name
+              #bind new row to df
+            rf_df_1_coef<-rbind(rf_df_1_coef, new_row_rf_df_1_coef)
+            rf_df_2_coef<-rbind(rf_df_2_coef, new_row_rf_df_2_coef)
+            rf_df_3_coef<-rbind(rf_df_3_coef, new_row_rf_df_3_coef)
+            rf_df_4_coef<-rbind(rf_df_4_coef, new_row_rf_df_4_coef)
+            rf_df_5_coef<-rbind(rf_df_5_coef, new_row_rf_df_5_coef)
+            
+            
+          
+            
+          
+          
+          
+          rf_df_1_coef_save <-remove_all_cols_that_are_zero(rf_df_1_coef)
+          rf_df_2_coef_save <-remove_all_cols_that_are_zero(rf_df_2_coef)
+          rf_df_3_coef_save <-remove_all_cols_that_are_zero(rf_df_3_coef)
+          rf_df_4_coef_save <-remove_all_cols_that_are_zero(rf_df_4_coef)
+          rf_df_5_coef_save <-remove_all_cols_that_are_zero(rf_df_5_coef)
+          
+          
+          
+          
+          #x<-rf_df_2_coef #remove all cols that are 0
+            #rf_df_2_save<-x[,apply(x,2,function(x) !all(x==0))]
+            
+            
+            
+            #rf_df_2_coef_fold$n_coeff <-count_coefficients( var_rf_model_2)
+            
+            
+            
+            #save random forest variables here
+            #rf_var_df <- data.frame(var_rf_model_1,var_rf_model_2,var_rf_model_3,var_rf_model_4,var_rf_model_5)
+            
+            
+            
+            
+            rf_formula_1<- rf_formula_11[[1]]
+            rf_formula_2<- rf_formula_21[[1]]
+            rf_formula_3<- rf_formula_31[[1]]
+            rf_formula_4<- rf_formula_41[[1]]
+            rf_formula_5<- rf_formula_51[[1]]
+            #build train test for rf_formulas
+            train_rf_1 <- model.matrix(rf_formula_1,data_train[train_rows[[j]],])
+            test_rf_1 <- model.matrix(rf_formula_1,data_train[-c(train_rows[[j]]),])
+            
+            train_rf_2 <- model.matrix(rf_formula_2,data_train[train_rows[[j]],])
+            test_rf_2 <- model.matrix(rf_formula_2,data_train[-c(train_rows[[j]]),])
+            
+            train_rf_3 <- model.matrix(rf_formula_3,data_train[train_rows[[j]],])
+            test_rf_3 <- model.matrix(rf_formula_3,data_train[-c(train_rows[[j]]),])
+            
+            train_rf_4 <- model.matrix(rf_formula_4,data_train[train_rows[[j]],])
+            test_rf_4 <- model.matrix(rf_formula_4,data_train[-c(train_rows[[j]]),])
+            
+            train_rf_5 <- model.matrix(rf_formula_5,data_train[train_rows[[j]],])
+            test_rf_5 <- model.matrix(rf_formula_5,data_train[-c(train_rows[[j]]),])
+            
+            do_rf_with_rf <-F #if false than features found by rf are used to build linear model like step
+            if(do_rf_with_rf ==T){
+              rf_model_1<-randomForest(train_rf_1,y = train_bacteria, na.rm =T, keep.forest = T)
+              rf_model_2<-randomForest(train_rf_2,y = train_bacteria, na.rm =T, keep.forest = T)
+              rf_model_3<-randomForest(train_rf_3,y = train_bacteria, na.rm =T, keep.forest = T)
+              rf_model_4<-randomForest(train_rf_4,y = train_bacteria, na.rm =T, keep.forest = T)
+              rf_model_5<-randomForest(train_rf_5,y = train_bacteria, na.rm =T, keep.forest = T)
+              
+              mse_rf_model_1_fold <- prediction_and_mse(rf_model_1, test1 = test_rf_1, test_bacteria = test_bacteria)
+              mse_rf_model_2_fold <- prediction_and_mse(rf_model_2, test1 = test_rf_2, test_bacteria = test_bacteria)
+              mse_rf_model_3_fold <- prediction_and_mse(rf_model_3, test1 = test_rf_3, test_bacteria = test_bacteria)
+              mse_rf_model_4_fold <- prediction_and_mse(rf_model_4, test1 = test_rf_4, test_bacteria = test_bacteria)
+              mse_rf_model_5_fold <- prediction_and_mse(rf_model_5, test1 = test_rf_5, test_bacteria = test_bacteria)
+            }
+            else{
+              
+              rf_model_1<-lm(rf_formula_1, data_train[train_rows[[j]],])
+              rf_model_2<-lm(rf_formula_2, data_train[train_rows[[j]],])
+              rf_model_3<-lm(rf_formula_3, data_train[train_rows[[j]],])
+              rf_model_4<-lm(rf_formula_4, data_train[train_rows[[j]],])
+              rf_model_5<-lm(rf_formula_5, data_train[train_rows[[j]],])
+              
+              #summary(rf_model_1)[["adj.r.squared"]]
+              #summary(step_model_1)[["adj.r.squared"]]
+              #summary(rf_model_1)
+             #5fold-cross validation on test_data
+              mse_rf_model_1_fold <- prediction_and_mse(rf_model_1, test1 = test, test_bacteria1 = test_bacteria)
+              mse_rf_model_2_fold <- prediction_and_mse(rf_model_2, test1 = test, test_bacteria1 = test_bacteria)
+              mse_rf_model_3_fold <- prediction_and_mse(rf_model_3, test1 = test, test_bacteria1 = test_bacteria)
+              mse_rf_model_4_fold <- prediction_and_mse(rf_model_4, test1 = test, test_bacteria1 = test_bacteria)
+              mse_rf_model_5_fold <- prediction_and_mse(rf_model_5, test1 = test, test_bacteria1 = test_bacteria)
+              
+              r2_rf_model_1_fold<-summary(rf_model_1)[["adj.r.squared"]]
+              r2_rf_model_2_fold<-summary(rf_model_2)[["adj.r.squared"]]
+              r2_rf_model_3_fold<-summary(rf_model_3)[["adj.r.squared"]]
+              r2_rf_model_4_fold<-summary(rf_model_4)[["adj.r.squared"]]
+              r2_rf_model_5_fold<-summary(rf_model_5)[["adj.r.squared"]]
+              
+            }
+            
+            
+            
+            mse_list_rf_1<- append(mse_list_rf_1,mse_rf_model_1_fold )
+            mse_list_rf_2<- append(mse_list_rf_2,mse_rf_model_2_fold )
+            mse_list_rf_3<- append(mse_list_rf_3,mse_rf_model_3_fold )
+            mse_list_rf_4<- append(mse_list_rf_4,mse_rf_model_4_fold )
+            mse_list_rf_5<- append(mse_list_rf_5,mse_rf_model_5_fold )
+            
+            r2_list_rf_1<- append(r2_list_rf_1,r2_rf_model_1_fold )
+            r2_list_rf_2<- append(r2_list_rf_2,r2_rf_model_2_fold )
+            r2_list_rf_3<- append(r2_list_rf_3,r2_rf_model_3_fold )
+            r2_list_rf_4<- append(r2_list_rf_4,r2_rf_model_4_fold )
+            r2_list_rf_5<- append(r2_list_rf_5,r2_rf_model_5_fold )
+            
+            
+            
+            
+            
+            
+            
+          } #end of cross_auswahl
+          
+          
+          
+          mse_rf_df_2_coef_save<-unique(rf_df_2_coef_save$formel)
+          
+          
+          
+        
+          
+          
+         
+          #does cross-validation with model$formula and returns list with sorted mse's
+          
+          cross_validation_for_mse_after_feature_selection <- function(df_x_coef_save){ #get formula column as object
+            #df_x_coef_save<-step_df_1_coef_save
+            #formulas<-step_df_1_coef_save$formel
+            formulas<-df_x_coef_save$formel
+            e<- (formulas)
+            
+           # unique(df_x_coef_save$formel)
+           # e<-mse_rf_df_2_coef_save
+          
+          
+          df <- data.frame()
+            for (i in 1:length(e)) {
+              #i=2
+              list_1 <- list()
+              s<- paste("log_e.coli ~", e[i])
+              
+              
+              for (j in 1:5) {
+               # j = 1
+                
+                
+                train_bacteria <- data_train[train_rows[[j]],]$log_e.coli
+                train <- data_train[train_rows[[j]],] #without e.coli
+                
+                test_bacteria <- data_train[-c(train_rows[[j]]),]$log_e.coli
+                test<-data_train[-c(train_rows[[j]]),]
+                lm_1 <- lm(s, train)
+                a<- prediction_and_mse(model1 = lm_1, test1 = test, test_bacteria1 = test_bacteria)
+                list_1<-append(list_1,a)
+                
+                
+              }
+              mse_through_cross_validation<-mean(unlist(list_1))
+              
+              
+              #list_2 <- append(list_2,assign(x = paste(deparse(substitute(e[i])),"formula",i,"mse_with_cross_selected_features",sep = "_"), mse_through_cross_validation))
+              df <-rbind(df, mse_through_cross_validation)
+              row.names(df)[i] <-paste(deparse(substitute(unique_formulas)),"formula",i, sep = "_")
+              names(df)<-"mean_mse_cross"
+              
+            }
+          df2<-df%>% arrange(mean_mse_cross)
+          
+          return(df2)
+          }
+          
+          
+          step_mse_cross_formula_1 <- cross_validation_for_mse_after_feature_selection(step_df_1_coef_save)
+          step_mse_cross_formula_2 <- cross_validation_for_mse_after_feature_selection(step_df_2_coef_save)
+          step_mse_cross_formula_3 <- cross_validation_for_mse_after_feature_selection(step_df_3_coef_save)
+          step_mse_cross_formula_4 <- cross_validation_for_mse_after_feature_selection(step_df_4_coef_save)
+          step_mse_cross_formula_5 <- cross_validation_for_mse_after_feature_selection(step_df_5_coef_save)
+          
+          
+        
+          rf_mse_cross_formula_1 <- cross_validation_for_mse_after_feature_selection(rf_df_1_coef_save)
+          rf_mse_cross_formula_2 <- cross_validation_for_mse_after_feature_selection(rf_df_2_coef_save)
+          rf_mse_cross_formula_3 <- cross_validation_for_mse_after_feature_selection(rf_df_3_coef_save)
+          rf_mse_cross_formula_4 <- cross_validation_for_mse_after_feature_selection(rf_df_4_coef_save)
+          rf_mse_cross_formula_5 <- cross_validation_for_mse_after_feature_selection(rf_df_5_coef_save)
+          
+          #get best formular from cross validation
+          get_smallest_mse_and_formula <- function(df_x_coef_save,mse_cross_formula_df){
+            #df_x_coef_save<-rf_df_3_coef_save
+            #mse_cross_formula_df <-rf_mse_cross_formula_3
+            #df_x_coef_save<-rf_df_1_coef_save
+            #mse_cross_formula_df <-rf_mse_cross_formula_1
+            #unique(df_x_coef_save$formel)
+            
+            name_splitted<-str_split(rownames(mse_cross_formula_df)[1], pattern = "_")[[1]]
+            formula_number<-as.integer( name_splitted[length(name_splitted)])
+            best_formula_and_mse_cross_validated <- cbind(df_x_coef_save[formula_number,ncol(df_x_coef_save)-1], (mse_cross_formula_df[1,]))
+            best_formula_and_mse_cross_validated<-data.frame(best_formula_and_mse_cross_validated)
+            row.names(best_formula_and_mse_cross_validated)<- deparse(substitute(df_x_coef_save))
+            names(best_formula_and_mse_cross_validated)[1]<-"formel"
+            names(best_formula_and_mse_cross_validated)[2]<-"mean_mse_cross"
+            best_formula_and_mse_cross_validated$mean_mse_cross<-as.double(best_formula_and_mse_cross_validated$mean_mse_cross)
+            return(best_formula_and_mse_cross_validated)
+          }
+          
+          
+          rf_smallest_mse_formula_coef_1<-get_smallest_mse_and_formula(rf_df_1_coef_save,rf_mse_cross_formula_1)
+          rf_smallest_mse_formula_coef_2<-get_smallest_mse_and_formula(rf_df_2_coef_save,rf_mse_cross_formula_2)
+          rf_smallest_mse_formula_coef_3<-get_smallest_mse_and_formula(rf_df_3_coef_save,rf_mse_cross_formula_3)
+          rf_smallest_mse_formula_coef_4<-get_smallest_mse_and_formula(rf_df_4_coef_save,rf_mse_cross_formula_4)
+          rf_smallest_mse_formula_coef_5<-get_smallest_mse_and_formula(rf_df_5_coef_save,rf_mse_cross_formula_5)
+          
+          
+          step_smallest_mse_formula_coef_1<-get_smallest_mse_and_formula(step_df_1_coef_save,step_mse_cross_formula_1)
+          step_smallest_mse_formula_coef_2<-get_smallest_mse_and_formula(step_df_2_coef_save,step_mse_cross_formula_2)
+          step_smallest_mse_formula_coef_3<-get_smallest_mse_and_formula(step_df_3_coef_save,step_mse_cross_formula_3)
+          step_smallest_mse_formula_coef_4<-get_smallest_mse_and_formula(step_df_4_coef_save,step_mse_cross_formula_4)
+          step_smallest_mse_formula_coef_5<-get_smallest_mse_and_formula(step_df_5_coef_save,step_mse_cross_formula_5)
+          
+          #lasso
+          #build dataframe for every  number of variables with lasso/step/ rf and their mean-mse-cross --> later used for testing on 
+          fit_lasso_base_cross_stand <- cv.glmnet(train_sparse, data_train$log_e.coli,type.measure="mse", alpha=1, family="gaussian",  nfolds = 5,standardize = T,relax = F, foldid = foldid)#--> alpha =1:  lasso regressio
+          
+          #small.lambda.index <- which(fit_lasso_base_cross_stand$lambda == cv$lambda.min)
+          #small.lambda.betas <- cv$glmnet.fit$beta[, small.lambda.index]
+          #beta_coef_nzero<-small.lambda.betas!=0
+          #small.lambda.betas[beta_coef_nzero]
+          #mse.min <- fit_lasso_base_cross_stand$cvm[small.lambda.index]
+          
+          #extract.coef(fit_lasso_base_cross_stand,  lambda =  "lambda.1se")
+          #extract.coef(fit_lasso_base_cross_stand, lambda = "lambda.min")
+          
+          #coef(fit_lasso_base_cross_stand, )
+          #search formulas for 5 coef
+          #s_lasso_fits_5_coef<-fit_lasso_base_cross_stand$nzero==5
+         
+          
+          fit_lasso_base_cross_stand$glmnet.fit$dev.ratio
+          
+          get_formula_mse_and_lambda_from_cg.glmnet_fit<- function(lambdas_with_number_of_coeff){
+            #lambdas_with_number_of_coeff<-lambdas_lasso_fits_1_coef
+            
+            df<-data.frame()
+            for (idx in 1:length(lambdas_with_number_of_coeff)) {
+              #idx=1
+            
+            
+              single_lambdas_with_number_of_coeff<-lambdas_with_number_of_coeff[idx] #lambda for first fit with 5 coef 
+              
+              
+              lambda.index <- which(fit_lasso_base_cross_stand$lambda == single_lambdas_with_number_of_coeff) # index of lambda for first fit with 5 coef 
+              mse_fit <- fit_lasso_base_cross_stand$cvm[lambda.index]  # mse for that index
+              
+              coefss<-fit_lasso_base_cross_stand$glmnet.fit$beta[,lambda.index] # all coef for that fit
+              indexs<-fit_lasso_base_cross_stand$glmnet.fit$beta[,lambda.index]!=0 # index for coef =! 0
+              
+              non_zero_coef<-coefss[indexs] # coef =! of the fit
+              coef_names_non_zero<-paste_together_step_coefficients(names(non_zero_coef))
+              
+             
+              
+              lasso_df_for_coef_number<-coef_names_non_zero
+              lasso_df_for_coef_number<- as.data.frame(lasso_df_for_coef_number)
+              lasso_df_for_coef_number<- cbind(lasso_df_for_coef_number,mse_fit, lambda.index,  single_lambdas_with_number_of_coeff)
+              
+              df<-rbind(df, lasso_df_for_coef_number)
+              
+            }
+            return(df)
+          }
+          
+          
+          #s_lasso_fits_5_coef<-fit_lasso_base_cross_stand$nzero==5
+          #lambdas_lasso_fits_5_coef<-fit_lasso_base_cross_stand$lambda[s_lasso_fits_5_coef]
+          
+          #search formulas for 2 coef
+          s_lasso_fits_1_coef<-fit_lasso_base_cross_stand$nzero==1  
+          lambdas_lasso_fits_1_coef<-fit_lasso_base_cross_stand$lambda[s_lasso_fits_1_coef]
+          lasso_fits_1_formula_coef_mse <- get_formula_mse_and_lambda_from_cg.glmnet_fit(lambdas_lasso_fits_1_coef) 
+          
+          #search formulas for 2 coef
+          s_lasso_fits_2_coef<-fit_lasso_base_cross_stand$nzero==2  
+          lambdas_lasso_fits_2_coef<-fit_lasso_base_cross_stand$lambda[s_lasso_fits_2_coef]
+          lasso_fits_2_formula_coef_mse <- get_formula_mse_and_lambda_from_cg.glmnet_fit(lambdas_lasso_fits_2_coef) 
+          
+          #search formulas for 3 coef
+          s_lasso_fits_3_coef<-fit_lasso_base_cross_stand$nzero==3  
+          lambdas_lasso_fits_3_coef<-fit_lasso_base_cross_stand$lambda[s_lasso_fits_3_coef]
+          lasso_fits_3_formula_coef_mse <- get_formula_mse_and_lambda_from_cg.glmnet_fit(lambdas_lasso_fits_3_coef)   
+          #search formulas for 4 coef
+          s_lasso_fits_4_coef<-fit_lasso_base_cross_stand$nzero==4  
+          lambdas_lasso_fits_4_coef<-fit_lasso_base_cross_stand$lambda[s_lasso_fits_4_coef]
+          lasso_fits_4_formula_coef_mse <- get_formula_mse_and_lambda_from_cg.glmnet_fit(lambdas_lasso_fits_4_coef)          
+          #search formulas for 5 coef
+          s_lasso_fits_5_coef<-fit_lasso_base_cross_stand$nzero==5
+          lambdas_lasso_fits_5_coef<-fit_lasso_base_cross_stand$lambda[s_lasso_fits_5_coef]
+          lasso_fits_5_formula_coef_mse <- get_formula_mse_and_lambda_from_cg.glmnet_fit(lambdas_lasso_fits_5_coef)
+         
+          
+          #here are the proposed lambda.min and lambda.1se from cross validation 
+          lasso_fits_lambda_min_formula_coef_mse <- get_formula_mse_and_lambda_from_cg.glmnet_fit(fit_lasso_base_cross_stand$lambda.min)
+          lasso_fits_lambda_1se_formula_coef_mse <- get_formula_mse_and_lambda_from_cg.glmnet_fit(fit_lasso_base_cross_stand$lambda.1se)
+         
+          #small.lambda.betas <- cv$glmnet.fit$beta[, small.lambda.index]
+          #beta_coef_nzero<-small.lambda.betas!=0
+          #small.lambda.betas[beta_coef_nzero]
+          #mse.min <- fit_lasso_base_cross_stand$cvm[small.lambda.index]
+          
+          
+          
+          
+          #get unique formulas
+          unique_step_formulas_coef_1<-unique(step_df_1_coef_save$formel)
+          unique_step_formulas_coef_2<-unique(step_df_2_coef_save$formel)
+          unique_step_formulas_coef_3<-unique(step_df_3_coef_save$formel)
+          unique_step_formulas_coef_4<-unique(step_df_4_coef_save$formel)
+          unique_step_formulas_coef_5<-unique(step_df_5_coef_save$formel)
+          
+          unique_rf_formulas_coef_1<-unique(rf_df_1_coef_save$formel)
+          unique_rf_formulas_coef_2<-unique(rf_df_2_coef_save$formel)
+          unique_rf_formulas_coef_3<-unique(rf_df_3_coef_save$formel)
+          unique_rf_formulas_coef_4<-unique(rf_df_4_coef_save$formel)
+          unique_rf_formulas_coef_5<-unique(rf_df_5_coef_save$formel)
+          
+          unique_lasso_formulas_coef_1<-unique(lasso_fits_1_formula_coef_mse$lasso_df_for_coef_number)
+          unique_lasso_formulas_coef_2<-unique(lasso_fits_2_formula_coef_mse$lasso_df_for_coef_number)
+          unique_lasso_formulas_coef_3<-unique(lasso_fits_3_formula_coef_mse$lasso_df_for_coef_number)
+          unique_lasso_formulas_coef_4<-unique(lasso_fits_4_formula_coef_mse$lasso_df_for_coef_number)
+          unique_lasso_formulas_coef_5<-unique(lasso_fits_5_formula_coef_mse$lasso_df_for_coef_number)
+          #unique 1se and lambda_min formulas
+          unique_lasso_formulas_coef_lambda_min <-unique(lasso_fits_lambda_min_formula_coef_mse$lasso_df_for_coef_number)
+          unique_lasso_formulas_coef_lambda_1se <-unique(lasso_fits_lambda_1se_formula_coef_mse$lasso_df_for_coef_number)
+          
+          #
+          
+          lasso_df_1_coef<-build_rename_cols_to_variable_names(df_with_all_variable_names)
+          lasso_df_2_coef<-build_rename_cols_to_variable_names(df_with_all_variable_names)
+          lasso_df_3_coef<-build_rename_cols_to_variable_names(df_with_all_variable_names)
+          lasso_df_4_coef<-build_rename_cols_to_variable_names(df_with_all_variable_names)
+          lasso_df_5_coef<-build_rename_cols_to_variable_names(df_with_all_variable_names)
+          
+          lasso_df_lambda_min_coef<-build_rename_cols_to_variable_names(df_with_all_variable_names)
+          lasso_df_lambda_1se_coef<-build_rename_cols_to_variable_names(df_with_all_variable_names)
+          
+         
+          
+         
+          #runterbrechen von formula auf features 
+          remove_zero_cols_lasso<-function(df){
+            
+            return(df[, colSums(df != 0) > 0])
+          }
+          
+          
+          
+          get_occurences_glmnet_feature_selection<-function(df_x_coef,unique_glmnet_formulas_coef_x){
+            #df_x_coef<-lasso_df_5_coef
+            #unique_glmnet_formulas_coef_x<- unique_lasso_formulas_coef_5
+            
+            for (idx in 1: length(unique_glmnet_formulas_coef_x)) {
+              new_row_glmnet_df_x_coef<-get_new_iteration_row(df_x_coef,unique_glmnet_formulas_coef_x[idx])
+              df_x_coef<-rbind(df_x_coef,new_row_glmnet_df_x_coef)
+            }
+            u<-df_x_coef[-1,] %>% select_if(~ !is.numeric(.) || sum(.) != 0)
+            return(u)
+          }
+          
+          
+          #build occurance df
+          lasso_df_1_coef<-get_occurences_glmnet_feature_selection(lasso_df_1_coef, unique_lasso_formulas_coef_1)
+          lasso_df_2_coef<-get_occurences_glmnet_feature_selection(lasso_df_2_coef, unique_lasso_formulas_coef_2)
+          lasso_df_3_coef<-get_occurences_glmnet_feature_selection(lasso_df_3_coef, unique_lasso_formulas_coef_3)
+          lasso_df_4_coef<-get_occurences_glmnet_feature_selection(lasso_df_4_coef, unique_lasso_formulas_coef_4)
+          lasso_df_5_coef<-get_occurences_glmnet_feature_selection(lasso_df_5_coef, unique_lasso_formulas_coef_5)
+          
+          lasso_df_lambda_min_coef<-get_occurences_glmnet_feature_selection(lasso_df_lambda_min_coef, unique_lasso_formulas_coef_lambda_min)
+          lasso_df_lambda_1se_coef<-get_occurences_glmnet_feature_selection(lasso_df_lambda_1se_coef, unique_lasso_formulas_coef_lambda_1se)
+          
+          
+          calc_col_means_glmnet <- function(df_x_coef_save){
+            #df_x_coef_save<-lasso_df_5_coef
+            #df_x_coef_save<-lasso_smallest_mse_formula_coef_1
+            new_df <- as.data.frame(colMeans(df_x_coef_save[-c((ncol(df_x_coef_save)-1):ncol(df_x_coef_save))]))
+            new_df <- new_df %>% t()
+            
+            #new_df <- cbind(new_df,colMeans(df_x_coef_save$mse))
+            #colnames(new_df)[ncol(new_df)] <- "MSE"
+            
+            #new_df <- cbind(new_df,mean(df_x_coef_save$n_features))
+            #colnames(new_df)[ncol(new_df)] <- "n_features"
+            
+            
+            new_rowname<-deparse(substitute(df_x_coef_save))
+            rownames(new_df)<-deparse(substitute(df_x_coef_save))
+            new_df<- as.data.frame(new_df)
+            
+            return(new_df)
+          }
+          
+          #colMeans(lasso_df_5_coef[-c(ncol(lasso_df_5_coef)-1,ncol(lasso_df_5_coef))])
+          
+          #calc_col_means(rf_df_5_coef_save)
+          #rf_df_2_coef_save
+          calc_col_means <- function(df_x_coef_save){
+            #df_x_coef_save<-step_df_1_coef_save
+            new_df <- as.data.frame(colMeans(df_x_coef_save[-c((ncol(df_x_coef_save)-4):ncol(df_x_coef_save))]))
+            new_df <- new_df %>% t()
+            
+            new_df <- cbind(new_df,colMeans(df_x_coef_save$mse))
+            colnames(new_df)[ncol(new_df)] <- "MSE"
+            
+            new_df <- cbind(new_df,mean(df_x_coef_save$n_features))
+            colnames(new_df)[ncol(new_df)] <- "n_features"
+            
+            
+            new_rowname<-deparse(substitute(df_x_coef_save))
+            rownames(new_df)<-deparse(substitute(df_x_coef_save))
+            new_df<- as.data.frame(new_df)
+            
+            return(new_df)
+          }
+          
+          
+          
+          
+          
+        
+          
+          
+          
+          
+          get_most_selected_formulas_and_occurences<-function(fits_x_formula_coef_mse){
+            #fits_x_formula_coef_mse<-lasso_fits_5_formula_coef_mse
+            unique_formulas <- unique(fits_x_formula_coef_mse$lasso_df_for_coef_number)
+            dfol<- data.frame()
+            idxj<-1
+            for (entry in unique_formulas) {
+              
+              dfol[idxj,1]<-entry
+              dfol[idxj,2]<-sum(fits_x_formula_coef_mse$lasso_df_for_coef_number==entry)/length(fits_x_formula_coef_mse$lasso_df_for_coef_number)
+              idxj<-idxj+1
+              
+            }
+            names(dfol)[1]<- "formel"
+            names(dfol)[2]<- "occurence"
+            return(dfol)
+          }
+          
+          #most selected features searched on train/test split
+          lasso_mse_min_selected_features_1<-get_most_selected_formulas_and_occurences(lasso_fits_1_formula_coef_mse)
+          lasso_mse_min_selected_features_2<-get_most_selected_formulas_and_occurences(lasso_fits_2_formula_coef_mse)
+          lasso_mse_min_selected_features_3<-get_most_selected_formulas_and_occurences(lasso_fits_3_formula_coef_mse)
+          lasso_mse_min_selected_features_4<-get_most_selected_formulas_and_occurences(lasso_fits_4_formula_coef_mse)
+          lasso_mse_min_selected_features_5<-get_most_selected_formulas_and_occurences(lasso_fits_5_formula_coef_mse)
+          
+          
+          lasso_mse_min_selected_features_lambda_min<-get_most_selected_formulas_and_occurences(lasso_fits_lambda_min_formula_coef_mse)
+          lasso_mse_min_selected_features_lambda_1se<-get_most_selected_formulas_and_occurences(lasso_fits_lambda_1se_formula_coef_mse)
+          #cross validate with linear model to get mse on cross
+          
+          get_glmnet_features_with_mse_min <- function(glmnet_most_selected_features_x){
+            
+            #glmnet_most_selected_features_x<-lasso_mse_min_selected_features_1
+            mse_df <-data.frame()
+            for (idx in 1:length(glmnet_most_selected_features_x$formel)) {
+              #idx<-1
+              mse_fit<-cross_validation_for_mse_after_feature_selection(glmnet_most_selected_features_x[idx,])
+              new_row <- cbind(glmnet_most_selected_features_x$formel[idx],mse_fit)
+              row.names(new_row) <-  deparse(substitute(glmnet_most_selected_features_x))
+              mse_df<-rbind(mse_df, new_row)
+            }
+            mse_df <- mse_df%>% arrange(mean_mse_cross)
+            names(mse_df)[1]<- "formel"
+            
+            return(mse_df[1,])
+            
+          }
+          
+          
+          
+          lasso_smallest_mse_formula_coef_1<-get_glmnet_features_with_mse_min(lasso_mse_min_selected_features_1)
+          lasso_smallest_mse_formula_coef_2<-get_glmnet_features_with_mse_min(lasso_mse_min_selected_features_2)
+          lasso_smallest_mse_formula_coef_3<-get_glmnet_features_with_mse_min(lasso_mse_min_selected_features_3)
+          lasso_smallest_mse_formula_coef_4<-get_glmnet_features_with_mse_min(lasso_mse_min_selected_features_4)
+          lasso_smallest_mse_formula_coef_5<-get_glmnet_features_with_mse_min(lasso_mse_min_selected_features_5)
+          
+          #interpretation ab hier
+          algorithms_mse_features_1<-rbind(lasso_smallest_mse_formula_coef_1,step_smallest_mse_formula_coef_1,rf_smallest_mse_formula_coef_1)%>%arrange(mean_mse_cross)
+          algorithms_mse_features_2<-rbind(lasso_smallest_mse_formula_coef_2,step_smallest_mse_formula_coef_2,rf_smallest_mse_formula_coef_2)%>%arrange(mean_mse_cross)
+          algorithms_mse_features_3<-rbind(lasso_smallest_mse_formula_coef_3,step_smallest_mse_formula_coef_3,rf_smallest_mse_formula_coef_3)%>%arrange(mean_mse_cross)
+          algorithms_mse_features_4<-rbind(lasso_smallest_mse_formula_coef_4,step_smallest_mse_formula_coef_4,rf_smallest_mse_formula_coef_4)%>%arrange(mean_mse_cross)
+          algorithms_mse_features_5<-rbind(lasso_smallest_mse_formula_coef_5,step_smallest_mse_formula_coef_5,rf_smallest_mse_formula_coef_5)%>%arrange(mean_mse_cross)
+          
+          
+          
+          full_join(lasso_smallest_mse_formula_coef_1,step_smallest_mse_formula_coef_1)
+          full_join(lasso_smallest_mse_formula_coef_2,step_smallest_mse_formula_coef_2)
+          
+          
+          
+          typeof(lasso_smallest_mse_formula_coef_1$mean_mse_cross)
+          typeof(step_smallest_mse_formula_coef_5$mean_mse_cross)
+          
+          
+          
+          
+          
+          
+          
+          
+          
+          
+            #small.lambda.index <- which(fit_lasso_base_cross_stand$lambda == cv$lambda.min)
+            #small.lambda.betas <- fit_lasso_base_cross_stand$glmnet.fit$beta[, small.lambda.index]
+          
+            #lambda.index <- which(fit_lasso_base_cross_stand$lambda == fit_lasso_base_cross_stand$lambda.min)
+            #lambda.betas <- fit_lasso_base_cross_stand$glmnet.fit$beta[, lambda.index]
+            
+            
+          
+          mse_step_1_fold<-(unlist(mse_list_step_1, recursive=FALSE))
+          mse_step_2_fold<-(unlist(mse_list_step_2, recursive=FALSE))
+          mse_step_3_fold<-(unlist(mse_list_step_3, recursive=FALSE))
+          mse_step_4_fold<-(unlist(mse_list_step_4, recursive=FALSE))
+          mse_step_5_fold<-(unlist(mse_list_step_5, recursive=FALSE))
+          
+          r2_step_1_fold<-(unlist(r2_list_step_1, recursive=FALSE))
+          r2_step_2_fold<-(unlist(r2_list_step_2, recursive=FALSE))
+          r2_step_3_fold<-(unlist(r2_list_step_3, recursive=FALSE))
+          r2_step_4_fold<-(unlist(r2_list_step_4, recursive=FALSE))
+          r2_step_5_fold<-(unlist(r2_list_step_5, recursive=FALSE))
+          
+          
+          step_df_1_coef_save$mse <- as.data.frame(mse_step_1_fold)
+          step_df_2_coef_save$mse <- as.data.frame(mse_step_2_fold)
+          step_df_3_coef_save$mse <- as.data.frame(mse_step_3_fold)
+          step_df_4_coef_save$mse <- as.data.frame(mse_step_4_fold)
+          step_df_5_coef_save$mse <- as.data.frame(mse_step_5_fold)
+          
+          
+          step_df_1_coef_save<-calc_n_features(step_df_1_coef_save)
+          step_df_2_coef_save<-calc_n_features(step_df_2_coef_save)
+          step_df_3_coef_save<-calc_n_features(step_df_3_coef_save)
+          step_df_4_coef_save<-calc_n_features(step_df_4_coef_save)
+          step_df_5_coef_save<-calc_n_features(step_df_5_coef_save)
+          
+          step_df_1_coef_save$r2 <- as.data.frame(r2_step_1_fold)
+          step_df_2_coef_save$r2 <- as.data.frame(r2_step_2_fold)
+          step_df_3_coef_save$r2 <- as.data.frame(r2_step_3_fold)
+          step_df_4_coef_save$r2 <- as.data.frame(r2_step_4_fold)
+          step_df_5_coef_save$r2 <- as.data.frame(r2_step_5_fold)
+          
+          
+          mse_rf_1_fold<-  unlist(mse_list_rf_1, recursive=FALSE)
+          mse_rf_2_fold<-  unlist(mse_list_rf_2, recursive=FALSE)
+          mse_rf_3_fold<-  unlist(mse_list_rf_3, recursive=FALSE)
+          mse_rf_4_fold<-  unlist(mse_list_rf_4, recursive=FALSE)
+          mse_rf_5_fold<-  unlist(mse_list_rf_5, recursive=FALSE)
+          
+          r2_rf_1_fold<-  unlist(r2_list_rf_1, recursive=FALSE)
+          r2_rf_2_fold<-  unlist(r2_list_rf_2, recursive=FALSE)
+          r2_rf_3_fold<-  unlist(r2_list_rf_3, recursive=FALSE)
+          r2_rf_4_fold<-  unlist(r2_list_rf_4, recursive=FALSE)
+          r2_rf_5_fold<-  unlist(r2_list_rf_5, recursive=FALSE)
+          
+          
+          
+          rf_df_1_coef_save$mse <- as.data.frame(mse_rf_1_fold)
+          rf_df_2_coef_save$mse <- as.data.frame(mse_rf_2_fold)
+          rf_df_3_coef_save$mse <- as.data.frame(mse_rf_3_fold)
+          rf_df_4_coef_save$mse <- as.data.frame(mse_rf_4_fold)
+          rf_df_5_coef_save$mse <- as.data.frame(mse_rf_5_fold)
+          
+          
+          
+          rf_df_1_coef_save<-calc_n_features(rf_df_1_coef_save)
+          rf_df_2_coef_save<-calc_n_features(rf_df_2_coef_save)
+          rf_df_3_coef_save<-calc_n_features(rf_df_3_coef_save)
+          rf_df_4_coef_save<-calc_n_features(rf_df_4_coef_save)
+          rf_df_5_coef_save<-calc_n_features(rf_df_5_coef_save)
+          
+          rf_df_1_coef_save$r2 <- as.data.frame(r2_rf_1_fold)
+          rf_df_2_coef_save$r2 <- as.data.frame(r2_rf_2_fold)
+          rf_df_3_coef_save$r2 <- as.data.frame(r2_rf_3_fold)
+          rf_df_4_coef_save$r2 <- as.data.frame(r2_rf_4_fold)
+          rf_df_5_coef_save$r2 <- as.data.frame(r2_rf_5_fold)
+          
+          
+          
+          
+          # do cross validation - to get cross validated mse
+          lasso_mse_cross_formula_1 <- cross_validation_for_mse_after_feature_selection(lasso_df_1_coef)
+          lasso_smallest_mse_formula_coef_1<-get_smallest_mse_and_formula(lasso_df_1_coef,lasso_mse_cross_formula_1)
+          
+          #this is for the best lasso_df_feature
+          cross_validation_for_mse_after_feature_selection (lasso_df_1_coef)
+          cross_validation_for_mse_after_feature_selection (lasso_df_2_coef)
+          
+          add_empty_na_mse_col_to_lasso <- function(df){
+            df$MSE <-NA
+            df$n_features <- NA
+            return(df)
+          }
+          
+          lasso_df_1_coef_save <-add_empty_na_mse_col_to_lasso(lasso_df_1_coef)
+          lasso_df_2_coef_save <-add_empty_na_mse_col_to_lasso(lasso_df_2_coef)
+          lasso_df_3_coef_save <-add_empty_na_mse_col_to_lasso(lasso_df_3_coef)
+          lasso_df_4_coef_save <-add_empty_na_mse_col_to_lasso(lasso_df_4_coef)
+          lasso_df_5_coef_save <-add_empty_na_mse_col_to_lasso(lasso_df_5_coef)
+          
+          
+          
+          lasso_1_selected_features_in_different_train_test_splits<- lasso_df_1_coef_save
+          step_1_selected_features_in_different_train_test_splits <- calc_col_means(step_df_1_coef_save)
+          rf_1_selected_features_in_different_train_test_splits <- calc_col_means(rf_df_1_coef_save)
+          
+          lasso_2_selected_features_in_different_train_test_splits<- lasso_df_2_coef_save
+          step_2_selected_features_in_different_train_test_splits <- calc_col_means(step_df_2_coef_save)
+          rf_2_selected_features_in_different_train_test_splits <- calc_col_means(rf_df_2_coef_save)
+          
+          lasso_3_selected_features_in_different_train_test_splits<- lasso_df_3_coef_save
+          step_3_selected_features_in_different_train_test_splits <- calc_col_means(step_df_3_coef_save)
+          rf_3_selected_features_in_different_train_test_splits <- calc_col_means(rf_df_2_coef_save)
+          
+          lasso_4_selected_features_in_different_train_test_splits<- lasso_df_4_coef_save
+          step_4_selected_features_in_different_train_test_splits <- calc_col_means(step_df_4_coef_save)
+          rf_4_selected_features_in_different_train_test_splits <- calc_col_means(rf_df_2_coef_save)
+          
+          lasso_5_selected_features_in_different_train_test_splits<- lasso_df_5_coef_save
+          step_5_selected_features_in_different_train_test_splits <- calc_col_means(step_df_5_coef_save)
+          rf_5_selected_features_in_different_train_test_splits <- calc_col_means(rf_df_2_coef_save)
+          
+          
+          combine_occurence_table <-function(step_x_selected_features_in_different_train_test_splits,rf_x_selected_features_in_different_train_test_splits,lasso_x_selected_features_in_different_train_test_splits){
+            #step_x_selected_features_in_different_train_test_splits <-step_4_selected_features_in_different_train_test_splits 
+            #rf_x_selected_features_in_different_train_test_splits<-rf_4_selected_features_in_different_train_test_splits
+            #lasso_x_selected_features_in_different_train_test_splits<-lasso_4_selected_features_in_different_train_test_splits
+            rownames(step_x_selected_features_in_different_train_test_splits)[1]<- "step"
+            rownames(rf_x_selected_features_in_different_train_test_splits)[1]<- "rf"
+            rownames(lasso_x_selected_features_in_different_train_test_splits)[1]<- "lasso"
+            
+            
+            #occurence_feature<-full_join(x = step_x_selected_features_in_different_train_test_splits, y = rf_x_selected_features_in_different_train_test_splits, )%>% full_join(lasso_x_selected_features_in_different_train_test_splits)
+            occurence_feature<- bind_rows(step_x_selected_features_in_different_train_test_splits, rf_x_selected_features_in_different_train_test_splits, lasso_x_selected_features_in_different_train_test_splits)
+            cols<- c("MSE", "n_features", "split_id", "formel")
+            occurence_feature<- occurence_feature%>% select(-one_of(cols))
+            
+            #occurence_feature<- occurence_feature[,-c((ncol(occurence_feature)-4):ncol(occurence_feature))]
+            return(occurence_feature)
+          }
+         
+          #occurence table interpretation
+           occurence_feature_1<-combine_occurence_table(step_1_selected_features_in_different_train_test_splits,rf_1_selected_features_in_different_train_test_splits,lasso_1_selected_features_in_different_train_test_splits)
+           occurence_feature_2<-combine_occurence_table(step_2_selected_features_in_different_train_test_splits,rf_2_selected_features_in_different_train_test_splits,lasso_2_selected_features_in_different_train_test_splits)
+           occurence_feature_3<-combine_occurence_table(step_3_selected_features_in_different_train_test_splits,rf_3_selected_features_in_different_train_test_splits,lasso_3_selected_features_in_different_train_test_splits)
+           occurence_feature_4<-combine_occurence_table(step_4_selected_features_in_different_train_test_splits,rf_4_selected_features_in_different_train_test_splits,lasso_4_selected_features_in_different_train_test_splits)
+           occurence_feature_5<-combine_occurence_table(step_5_selected_features_in_different_train_test_splits,rf_5_selected_features_in_different_train_test_splits,lasso_5_selected_features_in_different_train_test_splits)
+          
+           
+           combine_with_formula_column<-function(occurence, unique_step_features, unique_rf_features, unique_lasso_features){
+             #occurence <-occurence_feature_4
+             #unique_step_features <- unique_step_formulas_coef_4
+            # unique_rf_features <- unique_rf_formulas_coef_4
+             #unique_lasso_features<- unique_lasso_formulas_coef_4
+            df<- occurence
+            step_features<-character() 
+            rf_features<-character() 
+            lasso_features<-character() 
+            idx<- 1
+           for (entry in unique_step_features) {
+             
+             step_features<-paste(step_features,entry, sep = paste("  formula", idx,": ", sep = "_"))
+             idx<- idx+1
+             
+             
+           }
+           
+           idx<- 1
+           for (entry in unique_rf_features) {
+             
+             rf_features<-paste(rf_features,entry, sep = paste("  formula", idx,": ", sep = "_"))
+             idx<- idx+1
+             
+             
+           }
+           
+           idx<- 1
+           for (entry in unique_lasso_features) {
+             
+             lasso_features<-paste(lasso_features,entry, sep = paste("  formula", idx,": ", sep = "_"))
+             idx<- idx+1
+             
+             
+           }
+           new_column_df <- c(length(unique_step_features),length(unique_rf_features),length(unique_lasso_features))
+           new_column_df2<- c(step_features,rf_features,lasso_features)
+           df<- cbind(df,new_column_df,new_column_df2)
+           colnames(df)[ncol(df)-1]<- "n_formulas"
+           colnames(df)[ncol(df)]<- "found_formulas"
+           
+           return(df) 
+           }
+           
+           
+           occurence_feature_1_analysis <- combine_with_formula_column(occurence_feature_1,unique_step_formulas_coef_1, unique_rf_formulas_coef_1,unique_lasso_formulas_coef_1)
+           occurence_feature_2_analysis <- combine_with_formula_column(occurence_feature_2,unique_step_formulas_coef_2, unique_rf_formulas_coef_2,unique_lasso_formulas_coef_2)
+           occurence_feature_3_analysis <- combine_with_formula_column(occurence_feature_3,unique_step_formulas_coef_3, unique_rf_formulas_coef_3,unique_lasso_formulas_coef_3)
+           occurence_feature_4_analysis <- combine_with_formula_column(occurence_feature_4,unique_step_formulas_coef_4, unique_rf_formulas_coef_4,unique_lasso_formulas_coef_4)
+           occurence_feature_5_analysis <- combine_with_formula_column(occurence_feature_5,unique_step_formulas_coef_5, unique_rf_formulas_coef_5,unique_lasso_formulas_coef_5)
+           
+           calc_mse_for_unique_formulas_with_test_set<-function(unique_step_formulas,unique_rf_formulas,unique_lasso_formulas){
+            # unique_step_formulas<-unique_rf_formulas_coef_1
+            #  unique_rf_formulas<-unique_step_formulas_coef_1
+             # unique_lasso_formulas<-unique_lasso_formulas_coef_1
+             list_unqiue_formulas_all_algorithms<-unique(unlist(list(unique_rf_formulas,unique_step_formulas,unique_lasso_formulas)))
+             mse<-data.frame()
+             idx<- 1
+             for (entry in list_unqiue_formulas_all_algorithms) {
+               #entry<-list_unqiue_formulas_all_algorithms[1]
+               formel<-paste("log_e.coli ~ ",entry)
+               
+               model<- lm(formel, data_train)
+               mse_iteration<-prediction_and_mse(model1 = model, test_bacteria1 = data_test$log_e.coli, test1 = data_test)
+               mse[idx,1] <-mse_iteration
+               idx<- idx+1
+               
+             }
+              order_index<-order(mse$V1)[1]
+              df<-data.frame(list_unqiue_formulas_all_algorithms[order_index] , mse[order_index,])
+              names(df)[1]<- "formula_with_lowest_mse_on_test"
+              names(df)[2]<- "mse"
+              return(df)
+                
+           }           
+           
+           best_formula_with_coef_1<-calc_mse_for_unique_formulas_with_test_set(unique_step_formulas_coef_1,unique_rf_formulas_coef_1,unique_lasso_formulas_coef_1)
+           best_formula_with_coef_2<-calc_mse_for_unique_formulas_with_test_set(unique_step_formulas_coef_2,unique_rf_formulas_coef_2,unique_lasso_formulas_coef_3)
+           best_formula_with_coef_3<-calc_mse_for_unique_formulas_with_test_set(unique_step_formulas_coef_3,unique_rf_formulas_coef_3,unique_lasso_formulas_coef_3)
+           best_formula_with_coef_4<-calc_mse_for_unique_formulas_with_test_set(unique_step_formulas_coef_4,unique_rf_formulas_coef_4,unique_lasso_formulas_coef_4)
+           best_formula_with_coef_5<-calc_mse_for_unique_formulas_with_test_set(unique_step_formulas_coef_5,unique_rf_formulas_coef_5,unique_lasso_formulas_coef_5)
+           
+           
+           
+           check_if_algorithm_found_best_formula <- function(best_formula,occurence){
+             #best_formula<-best_formula_with_coef_2
+             #occurence <- occurence_feature_2_analysis
+             occurence$found_best_formula<-F
+             occurence$mse_best_formula<-list(best_formula$formula_with_lowest_mse_on_test,best_formula$formula_with_lowest_mse_on_test,best_formula$formula_with_lowest_mse_on_test)
+              for (rows in 1:nrow(occurence)) {
+             #rows<-2
+                 if (grepl(best_formula$formula_with_lowest_mse_on_test, occurence$found_formulas[rows], fixed = TRUE)) {
+                 occurence$found_best_formula[rows] <- T
+               }else{
+                 occurence$found_best_formula[rows] <- F
+               }
+             }
+             return(occurence)
+           }
+           
+           occurence_feature_1_analysis<-check_if_algorithm_found_best_formula(best_formula_with_coef_1,occurence_feature_1_analysis)
+           occurence_feature_2_analysis<-check_if_algorithm_found_best_formula(best_formula_with_coef_2,occurence_feature_2_analysis)
+           occurence_feature_3_analysis<-check_if_algorithm_found_best_formula(best_formula_with_coef_3,occurence_feature_3_analysis)
+           occurence_feature_4_analysis<-check_if_algorithm_found_best_formula(best_formula_with_coef_4,occurence_feature_4_analysis)
+           occurence_feature_5_analysis<-check_if_algorithm_found_best_formula(best_formula_with_coef_5,occurence_feature_5_analysis)
+           
+           
+```
+
+What was done:
+
+- split Data (80/20) in Train (data_train) and Test (data_test) 
+
+Used RandomForest,Stepwise and Lasso-regression for featureselection on Train set.
+- builded 5 train, test splits (train_rows) out of Train (data_train)
+- used step-algorithm to select 5  formulas with 1 to 5 features on every train/test split (train_rows) --> 25 formulas
+  - selected features are based on ascending advanced Rˆ2
+- used RandomForest-algorithm to select 5 formulas with 1 to 5 features on every train/test split (train_rows) --> 25 formulas
+  - selected features are based on ascending importance measure (https://www.rdocumentation.org/packages/randomForest/versions/4.6-14/topics/importance)
+- used lasso-regression with cross validation to get formulas from 1 to 5 features. The number of features that are used in a lasso regressin are based on the penalty parameter lambda. The cv.lmnet Lasso function uses 100 different lambda to fit 100 different lasso-regressions and to calculate the MSE with a 5- fold cross validation (same trainrows)
+
+The found formulas and percentage occurence of the features were combined in the following tables:
+Formulas with only 1 feature and their occurence in percentage.:
+```{r}
+occurence_feature_1_analysis[,1:4]
+```
+Lasso only found the feature : q_mean_mean_12
+step and RandomForest both found the features : q_mean_mean_12 (in 80% of the train/test_splits from the train_rows)  and q_mean_mean_123 (in 20% of the train/test_splits from the train_rows) 
+
+
+
+
+Formulas with only 2 feature and their occurence in percentage.:
+```{r}
+occurence_feature_2_analysis[,1:6]
+```
+
+Formulas with only 3 feature and their occurence in percentage.:
+```{r}
+occurence_feature_3_analysis[,1:9]
+```
+
+Formulas with only 4 feature and their occurence in percentage.:
+```{r}
+occurence_feature_4_analysis[,1:14]
+```
+
+Formulas with only  feature and their occurence in percentage.:
+```{r}
+occurence_feature_5_analysis[,1:19]
+```
+
+
+Results:
+- Features found by step and RandomForest are strongly dependend on the given training data. (Here Isar) 
+- Lasso finds always the same formula with the same features
+
+
+Second step:
+
+- use the unique found formulas by the three algorithms to build linear models by training them on the whole data_train. 
+- The builded models were used to predict the never seen FIB concentrations from data_test
+- the model with the lowest mean-squared error on data_test is the best_model. The used formula is the "best formula"
+
+Best Formula with 1 coef:
+
+```{r}
+best_formula_with_coef_1
+```
+
+Best Formula with 2 coef:
+
+```{r}
+best_formula_with_coef_2
+```
+
+Best Formula with 3 coef:
+
+```{r}
+best_formula_with_coef_3
+```
+
+
+Best Formula with 4 coef:
+
+```{r}
+best_formula_with_coef_4
+```
+
+
+Best Formula with 5 coef:
+
+```{r}
+best_formula_with_coef_5
+```
+
+
+Last step:
+
+Check if different algorithm types found the "best-formula"
+
+All three Algorithms found best formula with n_coef = 1
+```{r}
+occurence_feature_1_analysis[,-c(1:4)]
+```
+
+
+
+
+
+only lasso and rf found best formula with  n_coef = 2
+
+```{r}
+occurence_feature_2_analysis[,-c(1:6)]
+```
+
+only rf found best formula with  n_coef = 3
+
+```{r}
+occurence_feature_3_analysis[,-c(1:9)]
+```
+
+only rf found best formula with  n_coef = 4
+
+```{r}
+occurence_feature_4_analysis[,-c(1:13)]
+```
+
+only lasso found best formula with  n_coef = 3
+
+```{r}
+occurence_feature_5_analysis[,-c(1:18)]
+```
+
+
+Step-algorithm only found in 1 out of 5 cases (20%) the best formula. Only in the one with only 1 variable
+
+RandomForest found the best formula in 4 out of 5 cases (80%).
+
+Lasso found the best formula in 3 out of 5 cases (60%).
+
