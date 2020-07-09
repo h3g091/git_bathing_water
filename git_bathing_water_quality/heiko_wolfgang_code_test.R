@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 #for new river instanziere this
 river_stat_model_save <- data.frame()
 river_fmla_save <-list()
@@ -15,6 +16,11 @@ elnet_var_lambda_min_save<- data.frame(5)
 library(caret)
 library(magrittr)
 library(randomForest)
+=======
+{
+  {
+library(magrittr)
+>>>>>>> fa141024d102e568799891a0eb8bd8cd11d1797f
 library(dplyr)
 library(glmnet)
 library(purrr)
@@ -50,6 +56,10 @@ library(kwb.flusshygiene)
   
   names(river_data) <- rivers
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> fa141024d102e568799891a0eb8bd8cd11d1797f
 #if (FALSE)
 #turn to False if not wanted   
   #set.seed(5)
@@ -108,6 +118,7 @@ for (iterations in 1:2) {
   }
   
   
+<<<<<<< HEAD
 
   get_formula_variable_names <- function(formula_a,df){ 
   mf <- model.frame(formula_a, data=df)
@@ -159,6 +170,9 @@ for (iterations in 1:2) {
 
 #training_heiko<-data[fold1,]
 
+=======
+#
+>>>>>>> fa141024d102e568799891a0eb8bd8cd11d1797f
   calc_t <- function (datalist=river_data$havel, onlysummer) {
     #heiko
     #datalist<- river_data1$havel
@@ -171,7 +185,12 @@ for (iterations in 1:2) {
       data_summer <- lapply(phy_data, function(df){
         
         df <- subset(df, subset = lubridate::month(datum) %in% 4:9) 
+<<<<<<< HEAD
         }
+=======
+        
+      }
+>>>>>>> fa141024d102e568799891a0eb8bd8cd11d1797f
       )
     }  
     
@@ -310,9 +329,13 @@ for (iterations in 1:2) {
     
   data <- na.omit(data)
   
+<<<<<<< HEAD
   data <-data.frame(scale(data))
   
   #data <- data %>% filter(log_e.coli > log10(15)) #why-heiko? genauigkeit test?
+=======
+  data <- data %>% filter(log_e.coli > log10(15)) #why-heiko? genauigkeit test?
+>>>>>>> fa141024d102e568799891a0eb8bd8cd11d1797f
   
   
   #Definition of models
@@ -324,11 +347,18 @@ for (iterations in 1:2) {
   full <- lm(log_e.coli ~ .^2, data = data)
   }
   #heiko models
+<<<<<<< HEAD
+=======
+  
+  
+} 
+>>>>>>> fa141024d102e568799891a0eb8bd8cd11d1797f
   {
     #heiko
     {
       
       
+<<<<<<< HEAD
      
     bacteria<-names(data)[1]
     form<-formula(paste(bacteria," ~ .^2"))
@@ -368,15 +398,81 @@ for (iterations in 1:2) {
   #train <- model.matrix(log_e.coli~.^2, data = data)
   train_sparse <- sparse.model.matrix(form, data) #data must be dataframe
     
+=======
+      get_coef_1se_cv <- function(df){
+        tmp_coeffs <- coef(df, s = "lambda.1se")
+        a <- data.frame(name = tmp_coeffs@Dimnames[[1]][tmp_coeffs@i + 1], coefficient = tmp_coeffs@x)
+        return(a)
+      }
+      get_coef_min_cv <- function(df){
+        tmp_coeffs <- coef(df, s = "lambda.min")
+        a <- data.frame(name = tmp_coeffs@Dimnames[[1]][tmp_coeffs@i + 1], coefficient = tmp_coeffs@x)
+        return(a)
+      }
+      
+      
+      
+      get_coef_fixed_lambda <- function(df,lambda){
+        tmp_coeffs <- coef(df, s = lambda)
+        a <- data.frame(name = tmp_coeffs@Dimnames[[1]][tmp_coeffs@i + 1], coefficient = tmp_coeffs@x)
+        return(a)
+      }
+      
+      
+    }
+    get_formula_variable_names <- function(formula_a,df){ 
+      mf <- model.frame(formula_a, data=df)
+      mt <- attr(mf, "terms")
+      predvarnames <- attr(mt, "term.labels")
+      predvarnames
+    }
+    
+    #lasso
+    #build/integrate here into folds to train with same cross validation
+    #fold1<-train_rows[[1]]
+    
+    #training_heiko<-data[fold1,]
+    
+    part1<-names(data)[1]
+    form<-formula(paste(part1," ~ (.)^2"))
+    get_formula_variable_names(form,data)
+        #training_heiko_features <- (training_heiko%>% select(-log_e.coli))
+    #sparse.model.matrix(form, training_heiko)
+    
+    #form <- log_e.coli ~ (.)ˆ2
+    #training_heiko_features_matrix <- (data.frame.2.sparseMatrix(training_heiko_features))
+    train_sparse <- sparse.model.matrix(form, data) #data must be dataframe
+>>>>>>> fa141024d102e568799891a0eb8bd8cd11d1797f
     #train_sparse <- sparse.model.matrix(training_heiko$log_e.coli~(.)ˆ2, training_heiko[,3:ncol(training_heiko)]) #data must be dataframe
     #form <- Y ~ (x + y + z)^2
     #testing_heiko<-data[-fold1,]
     
+<<<<<<< HEAD
     # test_sparse <- sparse.model.matrix(testing_heiko$log_e.coli~., testing_heiko[,3:ncol(testing_heiko)]) #data must be dataframe
     
     
+=======
+   # test_sparse <- sparse.model.matrix(testing_heiko$log_e.coli~., testing_heiko[,3:ncol(testing_heiko)]) #data must be dataframe
+    set.seed(4)
+
+    {        
+    fit_lasso_base <- glmnet(train_sparse, data$log_e.coli , na.rm =T, standardize = F, alpha = 1,relax = F)
+    
+    fit_lasso_base_cross <- cv.glmnet(train_sparse, data$log_e.coli,type.measure="mse", alpha=1, family="gaussian",  nfolds = 3,standardize = F,relax = F)#--> alpha =1:  lasso regressio
     
     
+    fit_lasso_base_stand <- glmnet(train_sparse, data$log_e.coli , na.rm =T, standardize = T, alpha = 1,relax = F)
+    fit_lasso_base_cross_stand <- cv.glmnet(train_sparse, data$log_e.coli,type.measure="mse", alpha=1, family="gaussian",  nfolds = 3,standardize = T,relax = F)#--> alpha =1:  lasso regressio
+    
+    par(mfrow=c(2,2))
+    plot(fit_lasso_base, xvar="lambda", label = T, main = "lasso_base")
+    plot(fit_lasso_base_cross,main="LASSO")
+>>>>>>> fa141024d102e568799891a0eb8bd8cd11d1797f
+    
+    plot(fit_lasso_base_stand, xvar="lambda", label = T, main = "lasso_base_stand")
+    plot(fit_lasso_base_cross_stand,main="LASSO")
+    
+<<<<<<< HEAD
   
 } 
 
@@ -805,6 +901,125 @@ for (iterations in 1:2) {
     
     fit_lasso_base_cross <- cv.glmnet(train_sparse, data$log_e.coli,type.measure="mse", alpha=1, family="gaussian",  nfolds = 5,standardize = F,relax = F, foldid = foldid)#--> alpha =1:  lasso regressio
     
+=======
+    #plot(fit_elnet_base, xvar="lambda", label = T, main = "elnet_base")
+    #plot(fit_elnet_base_cross,main="elnet")
+    
+    #plot(fit_elnet_base_stand, xvar="lambda", label = T, main = "elnet_base_stand")
+    #plot(fit_elnet_base_cross_stand,main="elnet")
+    
+    
+    
+    get_feature_selection_coeficient_names_as_formular_1se <- function(algorithm_list){
+      #fit_lasso_base_cross
+      #algorithm_list<-fit_lasso_base_cross
+      coef_1se<- get_coef_1se_cv(algorithm_list)
+      if(dim(coef_1se)[1]==1){
+        print("only intercept. nothing to model")
+      }else{
+            coef_name_lambda_1se<-coef_1se$name[-1]
+      #a<-str("")
+      coefficients<-paste(coef_name_lambda_1se, collapse = " + " )
+      
+      formel<-paste("log_e.coli ~ ", coefficients)
+      formel
+      formula_from_selector<-formula(formel)
+      }
+      return(formula_from_selector)
+    }
+    get_feature_selection_coeficient_names_as_formular_lambda_min <- function(algorithm_list){
+      #algorithm_list<-fit_lasso_base_cross
+      coef_lambda_min<- get_coef_min_cv(algorithm_list)
+      coef_name_lambda_min<-coef_lambda_min$name[-1]
+      #a<-str("")
+      coefficients<-paste(coef_name_lambda_min, collapse = " + " )
+      formel<-paste("log_e.coli ~ ", coefficients)
+      formula_from_selector<-formula(formel)
+      return(formula_from_selector)
+    }  
+   
+    coef_1se_fit_lasso_base_cross<-get_coef_1se_cv (fit_lasso_base_cross)
+    coef_1se_fit_lasso_base_cross_stand<-get_coef_1se_cv (fit_lasso_base_cross_stand)
+    coef_lambda_min_fit_lasso_base_cross<-get_coef_min_cv (fit_lasso_base_cross)
+    coef_lambda_min_fit_lasso_base_cross_stand<-get_coef_min_cv (fit_lasso_base_cross_stand)
+    
+ # add_new_formulas_to_list_if_exists <- function(coef_list){
+    
+#    if(exists("coef_1se_fit_lasso_base_cross")== TRUE){
+ #     idx <- length(list_lasso)
+  #    idx <- idx+1
+  #    list_lasso[[idx]] <-coef_1se_fit_lasso_base_cross
+  #  }
+  #}
+        
+    list_lasso <- list()
+    
+    coef_1se_fit_lasso_base_cross               <-get_feature_selection_coeficient_names_as_formular_1se(fit_lasso_base_cross)
+    
+    if(exists("coef_1se_fit_lasso_base_cross")== TRUE){
+      idx <- length(list_lasso)
+      idx <- idx+1
+      list_lasso[[idx]] <-coef_1se_fit_lasso_base_cross
+    }
+    coef_1se_fit_lasso_base_cross_stand         <-get_feature_selection_coeficient_names_as_formular_1se(fit_lasso_base_cross_stand)
+    if(exists("coef_1se_fit_lasso_base_cross_stand")== TRUE){
+      idx <- length(list_lasso)
+      idx <- idx+1
+      list_lasso[[idx]] <-coef_1se_fit_lasso_base_cross_stand
+    }
+    
+    coef_lambda_min_fit_lasso_base_cross        <-get_feature_selection_coeficient_names_as_formular_lambda_min(fit_lasso_base_cross)
+    if(exists("coef_lambda_min_fit_lasso_base_cross")== TRUE){
+      idx <- length(list_lasso)
+      idx <- idx+1
+      list_lasso[[idx]] <-coef_lambda_min_fit_lasso_base_cross
+    }
+    
+    coef_lambda_min_fit_lasso_base_cross_stand  <-get_feature_selection_coeficient_names_as_formular_lambda_min(fit_lasso_base_cross_stand)
+    if(exists("coef_lambda_min_fit_lasso_base_cross_stand")== TRUE){
+      idx <- length(list_lasso)
+      idx <- idx+1
+      list_lasso[[idx]] <-coef_lambda_min_fit_lasso_base_cross_stand
+    }
+    
+    #check if all 4 coefficients exist and remove intercepts
+    idx <-0
+    for(element in list_lasso){
+      idx<-idx+1
+      if(typeof(element)!="language"){
+        list_lasso <- list_lasso[-idx]
+        print("f")
+      }
+    }
+    list_lasso
+    print(paste(length(list_lasso)," new models added")) 
+    model_lsit<-list()
+    list_lasso
+    #builded linear model
+    heiko_lm_1<-lm(list_lasso[[1]], data = data)
+    heiko_lm_2<-lm(list_lasso[[2]],data=data)
+    heiko_lm_3<-lm(list_lasso[[3]],data=data)
+    heiko_lm_4<-lm(list_lasso[[4]],data=data)
+    
+    list_heiko_lm <- list()
+    list_heiko_lm[[1]]<- heiko_lm_1
+    list_heiko_lm[[2]]<- heiko_lm_2
+    list_heiko_lm[[3]]<- heiko_lm_3
+    list_heiko_lm[[4]]<- heiko_lm_4
+    #for(form in list_lasso){
+      
+     # heiko_lm <- lm(form, data = data)
+    #  heiko_lm<-list(heiko_lm)
+     # append(heiko_lm,model_lsit)
+  #  }
+  #heiko_lm<- lm(formula_heiko_1, data = data)   
+  
+#nicht mehr benötigt  
+  #### Anwenden der Hauptfunktion ###################
+  
+  stepwise <- function (river, pattern, data, null, full ){
+ # Definition maximum number of steps
+>>>>>>> fa141024d102e568799891a0eb8bd8cd11d1797f
     
     fit_lasso_base_stand <- glmnet(train_sparse, data$log_e.coli , na.rm =T, standardize = T, alpha = 1,relax = F , foldid = foldid)
     fit_lasso_base_cross_stand <- cv.glmnet(train_sparse, data$log_e.coli,type.measure="mse", alpha=1, family="gaussian",  nfolds = 5,standardize = T,relax = F, foldid = foldid)#--> alpha =1:  lasso regressio
@@ -917,7 +1132,10 @@ for (iterations in 1:2) {
   
 
   
+<<<<<<< HEAD
   
+=======
+>>>>>>> fa141024d102e568799891a0eb8bd8cd11d1797f
 #adding new linear models, featureselection with lasso/elnet
 #selection<-append(selection, list(heiko_lm_1,heiko_lm_2,heiko_lm_3,heiko_lm_4))
   selection<-append(selection, list_heiko_lm)
@@ -933,6 +1151,7 @@ for (iterations in 1:2) {
   fmla_heiko_3 <-eval(heiko_lm_3$call$formula)
   fmla_heiko_4 <-eval(heiko_lm_4$call$formula)
   
+<<<<<<< HEAD
   fmla_lasso <- list()
   fmla_lasso[[1]]<- fmla_heiko_1
   fmla_lasso[[2]]<- fmla_heiko_2
@@ -940,6 +1159,13 @@ for (iterations in 1:2) {
   fmla_lasso[[4]]<- fmla_heiko_4
  
   
+=======
+  fmla_heiko <- list()
+  fmla_heiko[[1]]<- fmla_heiko_1
+  fmla_heiko[[2]]<- fmla_heiko_2
+  fmla_heiko[[3]]<- fmla_heiko_3
+  fmla_heiko[[4]]<- fmla_heiko_4
+>>>>>>> fa141024d102e568799891a0eb8bd8cd11d1797f
   # as.list(selection[[6]]$call)$formula
   
   fmla<-append(fmla, fmla_lasso)
@@ -1150,7 +1376,11 @@ for (iterations in 1:2) {
   #fertig als n steps
   
   #heiko add fb beforehand to this
+<<<<<<< HEAD
   #fb
+=======
+  fb
+>>>>>>> fa141024d102e568799891a0eb8bd8cd11d1797f
   unique_index <- length(unique(fb))
   fb <- fb[1:unique_index]
   
@@ -1158,7 +1388,11 @@ for (iterations in 1:2) {
   
   # testing for classical statistical model assumtions, normality of residuals and
   
+<<<<<<< HEAD
   # heteroskelasdicity   #t() transpose
+=======
+  # heteroskelasdicity
+>>>>>>> fa141024d102e568799891a0eb8bd8cd11d1797f
   river_stat_tests <- sapply(fb, get_stat_tests)%>%
     t() %>%
     dplyr::as_tibble(rownames = "model")  %>%
@@ -1171,6 +1405,7 @@ for (iterations in 1:2) {
   #-test/train split
   
   #weirde zeile, setze alle stat tests auf 0
+<<<<<<< HEAD
   river_stat_tests$in95 <- river_stat_tests$below95 <-river_stat_tests$below90 <- river_stat_tests$in50 <- river_stat_tests$MSE <- 0
   
   if(first_time_model_train == 1){ #keep the same train_rows, if models were trained one after another. object should be true only when it is trained 1. time on dataset
@@ -1197,6 +1432,16 @@ for (iterations in 1:2) {
   #train_rows[[fold]] <- train_row_id[foldid!= fold] 
   #}
   }  
+=======
+  river_stat_tests$in95 <- river_stat_tests$below95 <-river_stat_tests$below90 <- river_stat_tests$in50 <- 0
+  
+  
+  train_rows <- caret::createFolds(1:nrow(fb[[paste0(river, "model_01")]]$model),
+                                   
+                                   k = 5, list = T, returnTrain = T)
+  
+
+>>>>>>> fa141024d102e568799891a0eb8bd8cd11d1797f
   
   if(class(fmla[[length(fmla)]]) !="formula"){
     print("new element is no formula!!")
@@ -1398,6 +1643,7 @@ erro_df <- data.frame()
     }
   } 
   
+<<<<<<< HEAD
   } 
   
 }
@@ -1447,6 +1693,14 @@ write(river_fb_save, paste(river, "river_fb.csv", sep = "_"))
   
   
  # sorted_modellist <- river_stat_model_save %>%
+=======
+#fmla
+
+}  
+  
+}  
+  sorted_modellist <- river_stat_tests %>%
+>>>>>>> fa141024d102e568799891a0eb8bd8cd11d1797f
     
   #  filter( below95 == 5 & below90 == 5& in95) %>%
     
@@ -1473,8 +1727,12 @@ write(river_fb_save, paste(river, "river_fb.csv", sep = "_"))
   #(a+b+c+d)/4
   #fit_lasso_base_cross_stand$lambda.min
   
+<<<<<<< HEAD
   #coef(best_valid_model)
   
+=======
+  coef(best_valid_model)
+>>>>>>> fa141024d102e568799891a0eb8bd8cd11d1797f
   
   
   #refit best model
@@ -1526,12 +1784,32 @@ par(mfrow = c(1,1))
                        data = best_valid_model$model, iter = 10000) 
  
   
+<<<<<<< HEAD
+=======
+  
+  best_valid_model
+  par(mfrow = c(1,1))
+  plot(predict(best_valid_model),data$log_e.coli,
+       xlab="predicted",ylab="actual")
+  abline(a=0,b=1)
+  par(mfrow = c(2,2))
+  plot((best_valid_model))
+  
+ 
+  
+ 
+  
+>>>>>>> fa141024d102e568799891a0eb8bd8cd11d1797f
   #return(list(sorted_modellist = sorted_modellist,
               
    #           best_model = best_valid_model,
               
     #          stanfit = stanfit,
               
+<<<<<<< HEAD
+=======
+     #         brmsfit = brmsfit))
+>>>>>>> fa141024d102e568799891a0eb8bd8cd11d1797f
   
      #         brmsfit = brmsfit))
   
