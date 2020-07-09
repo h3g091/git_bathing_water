@@ -216,13 +216,19 @@ list_df_all_algorithms_with_mse_on_test<-list()
 list_unique_step_formulas <- list()
 list_unique_rf_formulas <- list()
 list_unique_lasso_formulas <- list()
+list_unique_elnet_formulas <- list()
 
 step_features_occurence<-build_rename_cols_to_variable_names(df_with_all_variable_names)
 rf_features_occurence<-build_rename_cols_to_variable_names(df_with_all_variable_names)
 lasso_features_occurence<-build_rename_cols_to_variable_names(df_with_all_variable_names)
+elnet_features_occurence<-build_rename_cols_to_variable_names(df_with_all_variable_names)
+
+list_river_stat_tests<-list()
 
 for (indx_fold in 1:length(train_rows)) {
+  
   #instanzierung dataframes for coefficients
+  {
   rf_df_1_coef <- build_rename_cols_to_variable_names(df_with_all_variable_names)
   rf_df_2_coef <- build_rename_cols_to_variable_names(df_with_all_variable_names)
   rf_df_3_coef<- build_rename_cols_to_variable_names(df_with_all_variable_names)
@@ -241,8 +247,12 @@ for (indx_fold in 1:length(train_rows)) {
   lasso_df_4_coef<-build_rename_cols_to_variable_names(df_with_all_variable_names)
   lasso_df_5_coef<-build_rename_cols_to_variable_names(df_with_all_variable_names)
   
-  
-  
+  elnet_df_1_coef<-build_rename_cols_to_variable_names(df_with_all_variable_names)
+  elnet_df_2_coef<-build_rename_cols_to_variable_names(df_with_all_variable_names)
+  elnet_df_3_coef<-build_rename_cols_to_variable_names(df_with_all_variable_names)
+  elnet_df_4_coef<-build_rename_cols_to_variable_names(df_with_all_variable_names)
+  elnet_df_5_coef<-build_rename_cols_to_variable_names(df_with_all_variable_names)
+  }
   
   
   #indx_fold<-1
@@ -525,46 +535,64 @@ for (indx_fold in 1:length(train_rows)) {
   
   #rf_selection ende
   
-  
+  {
+    get_formula_mse_and_lambda_from_cg.glmnet_fit<- function(lambdas_with_number_of_coeff, fit_glmnet){
+      #lambdas_with_number_of_coeff<-lambdas_lasso_fits_3_coef
+      #lambdas_with_number_of_coeff<-fit_elnet_base_cross_stand$lambda.min
+      #fit_glmnet<-fit_elnet_base_cross_stand
+      #fit_glmnet<-fit_lasso_base_cross_stand
+      df<-data.frame()
+      for (idx in 1:length(lambdas_with_number_of_coeff)) {
+        #idx=1
+        
+        
+        single_lambdas_with_number_of_coeff<-lambdas_with_number_of_coeff[idx] #lambda for first fit with 5 coef 
+        
+        
+        lambda.index <- which(fit_glmnet$lambda == single_lambdas_with_number_of_coeff) # index of lambda for first fit with 5 coef 
+        mse_fit <- fit_glmnet$cvm[lambda.index]  # mse for that index
+        
+        coefss<-fit_glmnet$glmnet.fit$beta[,lambda.index] # all coef for that fit
+        indexs<-fit_glmnet$glmnet.fit$beta[,lambda.index]!=0 # index for coef =! 0
+        
+        non_zero_coef<-coefss[indexs] # coef =! of the fit
+        coef_names_non_zero<-paste_together_step_coefficients(names(non_zero_coef))
+        
+        
+        
+        lasso_df_for_coef_number<-coef_names_non_zero
+        lasso_df_for_coef_number<- as.data.frame(lasso_df_for_coef_number)
+        lasso_df_for_coef_number<- cbind(lasso_df_for_coef_number,mse_fit, lambda.index,  single_lambdas_with_number_of_coeff)
+        
+        df<-rbind(df, lasso_df_for_coef_number)
+        
+      }
+      return(df)
+    }
+  }
+  {
+  get_occurences_glmnet_feature_selection<-function(df_x_coef,unique_glmnet_formulas_coef_x){
+    #df_x_coef<-lasso_df_1_coef
+    #unique_glmnet_formulas_coef_x<- unique_lasso_formulas_coef_1
+    if (length(unique_glmnet_formulas_coef_x)==0) {
+      u<- data.frame()
+    }else{
+      for (idx in 1: length(unique_glmnet_formulas_coef_x)) {
+        new_row_glmnet_df_x_coef<-get_new_iteration_row(df_x_coef,unique_glmnet_formulas_coef_x[idx])
+        df_x_coef<-rbind(df_x_coef,new_row_glmnet_df_x_coef)
+      }
+      u<-df_x_coef[-1,] %>% select_if(~ !is.numeric(.) || sum(.) != 0)
+    }
+    
+    return(u)
+  }
+  }
+  #lasso
   fit_lasso_base <- glmnet(train_sparse,data_train$log_e.coli,type.measure="mse", alpha=1, family="gaussian",relax = F)#--> alpha =1:  lasso regressio)
   
   
   
-  {
-  get_formula_mse_and_lambda_from_cg.glmnet_fit<- function(lambdas_with_number_of_coeff, fit_glmnet){
-    #lambdas_with_number_of_coeff<-lambdas_lasso_fits_3_coef
-    #lambdas_with_number_of_coeff<-fit_elnet_base_cross_stand$lambda.min
-    #fit_glmnet<-fit_elnet_base_cross_stand
-    #fit_glmnet<-fit_lasso_base_cross_stand
-    df<-data.frame()
-    for (idx in 1:length(lambdas_with_number_of_coeff)) {
-      #idx=1
-      
-      
-      single_lambdas_with_number_of_coeff<-lambdas_with_number_of_coeff[idx] #lambda for first fit with 5 coef 
-      
-      
-      lambda.index <- which(fit_glmnet$lambda == single_lambdas_with_number_of_coeff) # index of lambda for first fit with 5 coef 
-      mse_fit <- fit_glmnet$cvm[lambda.index]  # mse for that index
-      
-      coefss<-fit_glmnet$glmnet.fit$beta[,lambda.index] # all coef for that fit
-      indexs<-fit_glmnet$glmnet.fit$beta[,lambda.index]!=0 # index for coef =! 0
-      
-      non_zero_coef<-coefss[indexs] # coef =! of the fit
-      coef_names_non_zero<-paste_together_step_coefficients(names(non_zero_coef))
-      
-      
-      
-      lasso_df_for_coef_number<-coef_names_non_zero
-      lasso_df_for_coef_number<- as.data.frame(lasso_df_for_coef_number)
-      lasso_df_for_coef_number<- cbind(lasso_df_for_coef_number,mse_fit, lambda.index,  single_lambdas_with_number_of_coeff)
-      
-      df<-rbind(df, lasso_df_for_coef_number)
-      
-    }
-    return(df)
-  }
-  }
+
   
   #s_lasso_fits_5_coef<-fit_lasso_base_cross_stand$nzero==5
   #lambdas_lasso_fits_5_coef<-fit_lasso_base_cross_stand$lambda[s_lasso_fits_5_coef]
@@ -586,21 +614,7 @@ for (indx_fold in 1:length(train_rows)) {
   
   
   
-  get_occurences_glmnet_feature_selection<-function(df_x_coef,unique_glmnet_formulas_coef_x){
-    #df_x_coef<-lasso_df_1_coef
-    #unique_glmnet_formulas_coef_x<- unique_lasso_formulas_coef_1
-    if (length(unique_glmnet_formulas_coef_x)==0) {
-      u<- data.frame()
-    }else{
-    for (idx in 1: length(unique_glmnet_formulas_coef_x)) {
-      new_row_glmnet_df_x_coef<-get_new_iteration_row(df_x_coef,unique_glmnet_formulas_coef_x[idx])
-      df_x_coef<-rbind(df_x_coef,new_row_glmnet_df_x_coef)
-    }
-    u<-df_x_coef[-1,] %>% select_if(~ !is.numeric(.) || sum(.) != 0)
-    }
-    
-    return(u)
-  }
+ 
   
   #unique_lasso_formulas_coef_1<-
   unique_lasso_formulas_coef_1<-unique(lasso_df_coeficcient_lambdas$formula[lasso_df_coeficcient_lambdas$n_features==1])
@@ -619,7 +633,55 @@ for (indx_fold in 1:length(train_rows)) {
   
   unique_lasso_formulas<-unique(unlist(list(lasso_df_1_coef_save$formel,lasso_df_2_coef_save$formel,lasso_df_3_coef_save$formel,lasso_df_4_coef_save$formel,lasso_df_5_coef_save$formel)))
   
+  #end lasso
   
+  #elnet
+  fit_elnet_base <- glmnet(train_sparse,data_train$log_e.coli,type.measure="mse", alpha=0.5, family="gaussian",relax = F)#--> alpha =1:  lasso regressio)
+  
+  
+  
+  
+  
+  #s_elnet_fits_5_coef<-fit_elnet_base_cross_stand$nzero==5
+  #lambdas_elnet_fits_5_coef<-fit_elnet_base_cross_stand$lambda[s_elnet_fits_5_coef]
+  
+  #search formulas for 2 coef
+  elnet_df_coeficcient_lambdas <- data.frame()
+  for (s in 1:100) {
+    #s<-20
+    coefficient_names<-names(fit_elnet_base$beta[,s][fit_elnet_base$beta[,s]!=0 ])
+    coefficient_names_pasted<-paste(coefficient_names,collapse=" + ")
+    elnet_df_coeficcient_lambdas[s,1]<- s
+    elnet_df_coeficcient_lambdas[s,2]<- coefficient_names_pasted
+    elnet_df_coeficcient_lambdas[s,3]<- length(coefficient_names)
+    
+  }
+  names(elnet_df_coeficcient_lambdas)[1]<- "lambda_idx"
+  names(elnet_df_coeficcient_lambdas)[2]<- "formula"
+  names(elnet_df_coeficcient_lambdas)[3]<- "n_features"
+  
+  
+  
+  
+  
+  #unique_elnet_formulas_coef_1<-
+  unique_elnet_formulas_coef_1<-unique(elnet_df_coeficcient_lambdas$formula[elnet_df_coeficcient_lambdas$n_features==1])
+  unique_elnet_formulas_coef_2<-unique(elnet_df_coeficcient_lambdas$formula[elnet_df_coeficcient_lambdas$n_features==2])
+  unique_elnet_formulas_coef_3<-unique(elnet_df_coeficcient_lambdas$formula[elnet_df_coeficcient_lambdas$n_features==3])
+  unique_elnet_formulas_coef_4<-unique(elnet_df_coeficcient_lambdas$formula[elnet_df_coeficcient_lambdas$n_features==4])
+  unique_elnet_formulas_coef_5<-unique(elnet_df_coeficcient_lambdas$formula[elnet_df_coeficcient_lambdas$n_features==5])
+  
+  
+  #build occurance df
+  elnet_df_1_coef_save<-get_occurences_glmnet_feature_selection(elnet_df_1_coef, unique_elnet_formulas_coef_1)
+  elnet_df_2_coef_save<-get_occurences_glmnet_feature_selection(elnet_df_2_coef, unique_elnet_formulas_coef_2)
+  elnet_df_3_coef_save<-get_occurences_glmnet_feature_selection(elnet_df_3_coef, unique_elnet_formulas_coef_3)
+  elnet_df_4_coef_save<-get_occurences_glmnet_feature_selection(elnet_df_4_coef, unique_elnet_formulas_coef_4)
+  elnet_df_5_coef_save<-get_occurences_glmnet_feature_selection(elnet_df_5_coef, unique_elnet_formulas_coef_5)
+  
+  unique_elnet_formulas<-unique(unlist(list(elnet_df_1_coef_save$formel,elnet_df_2_coef_save$formel,elnet_df_3_coef_save$formel,elnet_df_4_coef_save$formel,elnet_df_5_coef_save$formel)))
+  
+  #end elnet
   
   
   #end of selection --> now get fold_mse
@@ -641,11 +703,11 @@ for (indx_fold in 1:length(train_rows)) {
   
   #unique formulas with 1-5 coefficients
   
-  list_unqiue_formulas_all_algorithms_coef_1 <-unique(unlist(list(rf_df_1_coef_save$formel ,step_df_1_coef_save$formel,lasso_df_1_coef_save$formel )))
-  list_unqiue_formulas_all_algorithms_coef_2 <-unique(unlist(list(rf_df_2_coef_save$formel ,step_df_2_coef_save$formel,lasso_df_2_coef_save$formel )))
-  list_unqiue_formulas_all_algorithms_coef_3 <-unique(unlist(list(rf_df_3_coef_save$formel ,step_df_3_coef_save$formel,lasso_df_3_coef_save$formel )))
-  list_unqiue_formulas_all_algorithms_coef_4 <-unique(unlist(list(rf_df_4_coef_save$formel ,step_df_4_coef_save$formel,lasso_df_4_coef_save$formel )))
-  list_unqiue_formulas_all_algorithms_coef_5 <-unique(unlist(list(rf_df_5_coef_save$formel ,step_df_5_coef_save$formel,lasso_df_5_coef_save$formel )))
+  list_unqiue_formulas_all_algorithms_coef_1 <-unique(unlist(list(rf_df_1_coef_save$formel ,step_df_1_coef_save$formel,lasso_df_1_coef_save$formel,elnet_df_1_coef_save$formel )))
+  list_unqiue_formulas_all_algorithms_coef_2 <-unique(unlist(list(rf_df_2_coef_save$formel ,step_df_2_coef_save$formel,lasso_df_2_coef_save$formel,elnet_df_2_coef_save$formel )))
+  list_unqiue_formulas_all_algorithms_coef_3 <-unique(unlist(list(rf_df_3_coef_save$formel ,step_df_3_coef_save$formel,lasso_df_3_coef_save$formel,elnet_df_3_coef_save$formel )))
+  list_unqiue_formulas_all_algorithms_coef_4 <-unique(unlist(list(rf_df_4_coef_save$formel ,step_df_4_coef_save$formel,lasso_df_4_coef_save$formel,elnet_df_4_coef_save$formel )))
+  list_unqiue_formulas_all_algorithms_coef_5 <-unique(unlist(list(rf_df_5_coef_save$formel ,step_df_5_coef_save$formel,lasso_df_5_coef_save$formel,elnet_df_5_coef_save$formel )))
   
   {
   calc_mse_for_unique_formulas_with_test_set<-function(list_unqiue_formulas_all_algorithms){
@@ -697,9 +759,10 @@ for (indx_fold in 1:length(train_rows)) {
   df_all_algorithms_with_mse_on_test$step <-F
   df_all_algorithms_with_mse_on_test$rf <-F
   df_all_algorithms_with_mse_on_test$lasso <-F
+  df_all_algorithms_with_mse_on_test$elnet <-F
   df_all_algorithms_with_mse_on_test$indx_fold<- indx_fold
     
-  #df_all_algorithms_with_mse_on_test$elnet <-F
+  
   
   #df_all_algorithms_with_mse_on_test$formula_with_lowest_mse_on_test[1] == unique_rf_formulas[7]
   
@@ -747,14 +810,15 @@ for (indx_fold in 1:length(train_rows)) {
     
   }   
   #check if elnet_found_formula
-  #for (jdx in 1:length(unique_elnet_formulas)) {
-   # for (idx in 1:nrow(df_all_algorithms_with_mse_on_test)) {
-      #idx<-1
-    #  if (df_all_algorithms_with_mse_on_test$formula_with_lowest_mse_on_test[idx]== unique_elnet_formulas[jdx]) {
-     #   df_all_algorithms_with_mse_on_test$elnet[idx]<- T
-      #}
-    #}
-  #}
+  for (jdx in 1:length(unique_elnet_formulas)) {
+    #jdx<-1
+    for (idx in 1:nrow(df_all_algorithms_with_mse_on_test)) {
+      #idx<-5
+      if (df_all_algorithms_with_mse_on_test$formula_with_lowest_mse_on_test[idx]== unique_elnet_formulas[jdx]) {
+        df_all_algorithms_with_mse_on_test$elnet[idx]<- T
+      }
+    }
+  }
   
   
   
@@ -768,6 +832,173 @@ for (indx_fold in 1:length(train_rows)) {
   list_unique_step_formulas <- append(list_unique_step_formulas,unique_step_formulas)
   list_unique_rf_formulas <- append(list_unique_rf_formulas,unique_rf_formulas)
   list_unique_lasso_formulas <- append(list_unique_lasso_formulas,unique_lasso_formulas)
+  list_unique_elnet_formulas <- append(list_unique_elnet_formulas,unique_elnet_formulas)
+  
+  do_mcmc<-T
+  if (do_mcmc==T) {
+    list_unqiue_formulas_all_algorithms <-df_all_algorithms_with_mse_on_test$formula_with_lowest_mse_on_test
+    
+    #list_unqiue_formulas_all_algorithms <- list_formulas_all_algorithms[[1]]
+    fb<-list()
+    idx<-1
+    for(idx in 1:length(list_unqiue_formulas_all_algorithms)){
+      fmla[[idx]]  <- paste("log_e.coli ~ ",list_unqiue_formulas_all_algorithms[idx])
+      fb[[idx]] <- lm(fmla[[idx]], data = data_train) #because of cross validation for mcmc
+    }
+    
+    ################ Validation ########################
+    
+    names(fb) <- sprintf(paste0(river,"model_%02d"), seq_along(1:length(fb)))
+    
+    # calculate statistical tests for residuals: Normality and s2 = const
+    
+    # shapiro-wilk test and breusch-pagan test
+    
+    get_stat_tests <- function(model) {
+      c(N = shapiro.test(model$residuals)$p.value, lmtest::bptest(model)$p.value,
+        R2 = summary(model)[["adj.r.squared"]], n_obs = length(model$residuals))
+      
+    }
+    
+    
+    # testing for classical statistical model assumtions, normality of residuals and
+    
+    # heteroskelasdicity   #t() transpose
+    river_stat_tests <- sapply(fb, get_stat_tests)%>%
+      t() %>%
+      dplyr::as_tibble(rownames = "model")  %>%
+      dplyr::bind_rows(.id = "river") %>%
+      dplyr::mutate(stat_correct = N > .05 & BP > .05)
+    
+    
+    
+    # creating list of independent training rows
+    #-test/train split
+    
+    #weirde zeile, setze alle stat tests auf 0
+    river_stat_tests$in95 <- river_stat_tests$below95 <-river_stat_tests$below90 <- river_stat_tests$in50 <- river_stat_tests$MSE <- 0
+    
+    if(class(fmla[[length(fmla)]]) !="formula"){
+      print("new element is no formula!!")
+    }
+    
+    test_beta <- function(true, false, percentile){
+      if( pbeta(q = percentile, shape1 = true + 1, shape2 = false + 1) > 0.05){
+        TRUE}
+      else{FALSE}
+      
+    }
+    
+    
+    names(fmla) <- sprintf(paste0(river,"model_%02d"), seq_along(1:length(fb)))
+    
+    counter<-0
+    
+    erro_df <- data.frame()
+    
+    #cross validation   needs fb, and fmla
+    
+    { 
+      for(i in names(fb)){
+        #i<- names(fb)[1]
+        counter<- counter+1
+        #i="havelmodel_01"
+        test_error_df_model <- data.frame()
+        assign(paste(i,"_test_error_df_model",sep = ""),test_error_df_model)
+        
+        #for(j in 1:5){
+          counter <- counter+1
+          # j=1
+          
+          
+          #training <- as.data.frame(fb[[i]]$model)[c(train_rows[[j]]),]
+          #training <- as.data.frame(fb[[6]]$model)[c(train_rows[[1]]),]
+          #test <- as.data.frame(fb[[i]]$model)[-c(train_rows[[j]]),]
+          #test <- as.data.frame(fb[[6]]$model)[-c(train_rows[[1]]),]
+          #formel<-formula(formula_heiko_1)
+          
+          
+          #fmla[6]<- list(formel)
+          
+          
+          
+          fit <- rstanarm::stan_glm(fmla[[i]], data = data_train ) #fitting
+          #fit <- rstanarm::stan_glm(fmla[[1]], data = training) #fitting
+          
+          
+          df <- apply(rstanarm::posterior_predict(fit, newdata = data_test), 2, quantile, #predicting
+                      
+                      probs = c(0.025, 0.25, 0.5 , 0.75, 0.9, 0.95, 0.975)) %>% t() %>% as.data.frame() %>%
+            
+            dplyr::mutate(log_e.coli = data_test$log_e.coli, #evaluating ther model has to be classified correctly with every single test train split
+                          #--> here 5 different splits, if all validations correct than everywhere ==5
+                          
+                          below95 = log_e.coli < `95%`,
+                          
+                          below90 = log_e.coli < `90%`,
+                          
+                          within95 = log_e.coli < `97.5%`& log_e.coli > `2.5%`,
+                          
+                          within50 = log_e.coli < `75%`& log_e.coli > `25%`,
+                          
+            ) 
+          #error on testset
+          test_error_df_temp<- df%>%select(log_e.coli,`50%`)%>% mutate(squared_error = ((log_e.coli - `50%`)^2))
+          test_error_df_model<- test_error_df_model %>% rbind(test_error_df_temp)
+          
+          assign(paste(i,"_test_error_df_model", sep = ""),test_error_df_model)
+          #validation step if all percentile categories are set to 1
+          
+          river_stat_tests$in95[river_stat_tests$model == i] <-
+            
+            river_stat_tests$in95[river_stat_tests$model == i] +
+            
+            test_beta(true = sum(df$within95), false = sum(!df$within95), percentile = .95 ) #is 1 if true
+          
+          river_stat_tests$below95[river_stat_tests$model == i] <-
+            
+            river_stat_tests$below95[river_stat_tests$model == i] +
+            
+            test_beta(true = sum(df$below95), false = sum(!df$below95), percentile = .95 )
+          
+          river_stat_tests$below90[river_stat_tests$model == i] <-
+            
+            river_stat_tests$below90[river_stat_tests$model == i] +
+            
+            test_beta(true = sum(df$below90), false = sum(!df$below90), percentile = .90 )
+          
+          river_stat_tests$in50[river_stat_tests$model == i] <-
+            
+            river_stat_tests$in50[river_stat_tests$model == i] +
+            
+            
+            #beta test
+            test_beta(true = sum(df$within50), false = sum(!df$within50), .5)
+          #add MSE to stat_tests
+          river_stat_tests$MSE[river_stat_tests$model == i] <- mean(test_error_df_model$squared_error)
+          
+          
+          #add selected features and coeeficients to statistical test
+          river_stat_tests$selected_features[river_stat_tests$model == i] <- list((fmla[[i]]))
+          #river_stat_tests$selected_features[river_stat_tests$model == i] <- list(all.vars(fmla[[i]]))
+          river_stat_tests$coef_selected[river_stat_tests$model == i]<- list(coef(fb[[i]]))
+          
+          list_river_stat_tests<- append(list_river_stat_tests, list(river_stat_tests))
+          
+        #} 
+        
+      } 
+    }
+    
+    
+    
+    
+
+    
+    
+  }
+  
+  
   
 }
 
@@ -776,12 +1007,13 @@ for (indx_fold in 1:length(train_rows)) {
 #analysis featureselection
 list_unique_step_formulas<- unique(unlist(list_unique_step_formulas))
 list_unique_lasso_formulas<- unique(unlist(list_unique_lasso_formulas))
+list_unique_elnet_formulas<- unique(unlist(list_unique_elnet_formulas))
 list_unique_rf_formulas<- unique(unlist(list_unique_rf_formulas))
 
 step_features_occurence<-get_occurences_glmnet_feature_selection(step_features_occurence, list_unique_step_formulas)
 rf_features_occurence<-get_occurences_glmnet_feature_selection(rf_features_occurence, list_unique_rf_formulas)
 lasso_features_occurence<-get_occurences_glmnet_feature_selection(lasso_features_occurence, list_unique_lasso_formulas)
-
+elnet_features_occurence<-get_occurences_glmnet_feature_selection(elnet_features_occurence, list_unique_elnet_formulas)
 
 #analysis - frequentistic
 list_all_found_formulas <- list()
@@ -812,7 +1044,40 @@ for (formula_indx in 1:nrow(analysis_df)) {
 }
 analysis_df<-analysis_df%>%arrange(desc(found_n_times),mse)
 
-list_df_all_algorithms_with_mse_on_test
 
+#mcmc analysis
+
+#select only models that are validated - sorted by desc R2 - but is this a good kpi??
+sorted_modellist <- river_stat_tests %>%
+  
+  filter( below95 == 5 & below90 == 5& in95 ) %>%
+  
+  dplyr::arrange(desc(in50), MSE)  
+
+
+
+#check if formula was found by algorithm
+sorted_modellist$lasso_formula <- F
+sorted_modellist$rf_formula <- F
+sorted_modellist$step_formula <- F
+sorted_modellist$elnet_formula <- F
+
+
+for (idx in 1: nrow(sorted_modellist)) {
+  #idx<-1
+  selected_features_posterior<-sorted_modellist[idx,]$selected_features[[1]][1]
+  g<-str_split(selected_features_posterior,"~  ")
+  l<-g[[1]][2]
+  
+  if(!is.na(match(l,unlist(unique_lasso_formulas)))){
+    sorted_modellist$lasso_formula[idx] =T
+  }else if(!is.na(match(l,unlist(unique_rf_formulas)))){
+    sorted_modellist$rf_formula[idx] =T
+  }else if(!is.na(match(l,unlist(unique_step_formulas)))){
+    sorted_modellist$step_formula[idx] =T
+  }else if(!is.na(match(l,unlist(unique_elnet_formulas)))){
+    sorted_modellist$elnet_formula[idx] =T
+  }
+}
 
 
