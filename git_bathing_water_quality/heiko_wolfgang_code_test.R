@@ -2,14 +2,14 @@
 river_stat_model_save <- data.frame()
 river_fmla_save <-list()
 river_fb_save <-data.frame()
-error_df_algorithms_save<- data.frame(5,1)
-rf_var_df_save <- data.frame(5,1)
-step_var_df_save<- data.frame(5,1)
+error_df_algorithms_save<- data.frame(5)
+rf_var_df_save <- data.frame(5)
+step_var_df_save<- data.frame(5)
 
-lasso_var_lambda_1se_save <- data.frame(5,1)
-elnet_var_lambda_1se_save <- data.frame(5,1)
-lasso_var_lambda_min_save <- data.frame(5,1)
-elnet_var_lambda_min_save<- data.frame(5,1)
+lasso_var_lambda_1se_save <- data.frame(5)
+elnet_var_lambda_1se_save <- data.frame(5)
+lasso_var_lambda_min_save <- data.frame(5)
+elnet_var_lambda_min_save<- data.frame(5)
 {    #preload packages
 {
 library(caret)
@@ -60,15 +60,15 @@ library(kwb.flusshygiene)
 {
   {
   #set.seed(5)
-for (iterations in 1:10) {
+for (iterations in 1:2) {
   random_number <- set.seed(iterations)
     
   do_only_lin_regression <-T
-  do_mcmc <-F
+  do_mcmc <-T
   new_train_test_split <-T
   do_lasso <- F
   do_elnet <- F #takes way to long (2h+)
-  do_step <- F
+  do_step <- T
   do_random_forest <- F 
   {
     do_mean_importance_selection<-F
@@ -96,7 +96,10 @@ for (iterations in 1:10) {
     return(a)
   }
   
-  
+  prediction_and_mse<- function(model, test, test_bacteria){
+    prediction<-predict(model, test)
+    return(mean(sqrt((test_bacteria - prediction)^2)))
+  }
   
   get_coef_fixed_lambda <- function(df,lambda){
     tmp_coeffs <- coef(df, s = lambda)
@@ -397,7 +400,7 @@ for (iterations in 1:10) {
       
       
       
-      selection[[i]] <- step(null, data = data1,
+      selection[[i]] <- step(null1, data = data1,
                              
                              direction = "forward",
                              
@@ -419,11 +422,30 @@ for (iterations in 1:10) {
   }
   
   if(do_only_lin_regression==T){
-    elnet_var_lambda_1se<-lasso_var_lambda_1se<-elnet_var_lambda_min<-lasso_var_lambda_min<-step_var_df<-rf_var_df<-data.frame()
+   
+    paste_together_step_coefficients<-function(var_step_model_function ){
+      #var_step_model_function <- var_step_model_3
+      #var_step_model_function[1:3]
+      #var_step_model_function <- var_step_model_function[[2:length(var_step_model_function)]]
+      formel<- var_step_model_function[[1]]
+      
+      if(length(var_step_model_function)> 1){
+        for (entry in 2:length(var_step_model_function)) {
+          
+          formel<-paste(formel, var_step_model_function[entry], sep = " + ")
+          
+        }
+      }
+      return(formel)
+    } 
+    #instanzieren variables
+    elnet_var_lambda_1se<-lasso_var_lambda_1se<-elnet_var_lambda_min<-lasso_var_lambda_min<-data.frame()
+    rf_var_df<-step_var_df <- data.frame(5)
     mse_list_rf_1<-mse_list_rf_2<-mse_list_rf_3<-mse_list_rf_4<-mse_list_rf_5<-mse_list_step_1<-    mse_list_step_2<-    mse_list_step_3<-    mse_list_step_4<-    mse_list_step_5 <-mse_list_rf <- list()
+    
     for(j in 1:5){
      
-      # j=3
+       #j=1
       train_bacteria <- data[train_rows[[j]],]$log_e.coli
       train <- data[train_rows[[j]],-1] #without e.coli
       train_rf <- model.matrix(form, data[train_rows[[j]],])
@@ -436,7 +458,11 @@ for (iterations in 1:10) {
       #train <- model.matrix(log_e.coli~.^2, data = data)
       #train_sparse_glmnet <- sparse.model.matrix(form, train) #data must be dataframe
       
+      #set name for iteration
+      iteration_name<-paste("iterations", iterations,"fold",j,sep = "_")
       
+      
+    
       
       
       #rfModel<-randomForest(x=train,  y=train_bacteria, xtest = test, ytest =  test_bacteria, importance = T, keep.forest = T )
@@ -449,39 +475,50 @@ for (iterations in 1:10) {
       imp_rf<-imp_rf[order(imp_rf$overall,decreasing = T),]
       
       build_formula <- function( feature_list,bacteria = "log_e.coli~ " ){
+        #feature_list<-imp_rf[1,2]
+        formel <- feature_list[1]
+        #formel1 <- feature_list[1,]
+        if(length(feature_list)>1){
+          for (idx in 2: length(feature_list)) {
+            #element<-feature_list[2,]
+            formel <- paste(formel, feature_list[[idx]], sep=" + ")
+          }
+        }  
+          formel_with_bacteria<- as.formula(paste(bacteria, formel, sep=""))
+          formellsit<-c(formel_with_bacteria,formel)
         
-        formel <- feature_list[1,]
-        formel1 <- feature_list[1,]
-        for (element in feature_list[-1,]) {
-          #element<-feature_list[2,]
-          formel1 <- paste(formel, element, sep=" + ")
-        }
-        formel<- as.formula(paste(bacteria, formel, sep=""))
-        formellsit<-c(formel,formel1)
         return(formellsit)
       }
       
       
-      rf_formula_11<-build_formula(imp_rf[1,][2])
-      rf_formula_21<-build_formula(imp_rf[1:2,][2])
-      rf_formula_31<-build_formula(imp_rf[1:3,][2])
-      rf_formula_41<-build_formula(imp_rf[1:4,][2])
-      rf_formula_51<-build_formula(imp_rf[1:5,][2])
+      rf_formula_11<-build_formula(imp_rf[1,2])
+      rf_formula_21<-build_formula(imp_rf[1:2,2])
+      rf_formula_31<-build_formula(imp_rf[1:3,2])
+      rf_formula_41<-build_formula(imp_rf[1:4,2])
+      rf_formula_51<-build_formula(imp_rf[1:5,2])
       
       var_rf_model_1 <-  rf_formula_11[[2]]
       var_rf_model_2 <- rf_formula_21[[2]]
       var_rf_model_3 <- rf_formula_31[[2]]
       var_rf_model_4 <- rf_formula_41[[2]]
       var_rf_model_5 <- rf_formula_51[[2]]
+      
+      
+
+      
+      
       #save random forest variables here
-      rf_var_df <- data.frame(var_rf_model_1,var_rf_model_2,var_rf_model_3,var_rf_model_4,var_rf_model_5)
+      #rf_var_df <- data.frame(var_rf_model_1,var_rf_model_2,var_rf_model_3,var_rf_model_4,var_rf_model_5)
+      rf_var_df_fold <- setNames(data.frame(rbind(var_rf_model_1,var_rf_model_2,var_rf_model_3,var_rf_model_4,var_rf_model_5)), iteration_name)
+      rf_var_df <- cbind(rf_var_df,rf_var_df_fold)
+      
       
       rf_formula_1<- rf_formula_11[[1]]
       rf_formula_2<- rf_formula_21[[1]]
       rf_formula_3<- rf_formula_31[[1]]
       rf_formula_4<- rf_formula_41[[1]]
       rf_formula_5<- rf_formula_51[[1]]
-      
+      #build train test for rf_formulas
       train_rf_1 <- model.matrix(rf_formula_1,data[train_rows[[j]],])
       test_rf_1 <- model.matrix(rf_formula_1,data[-c(train_rows[[j]]),])
       
@@ -536,15 +573,6 @@ for (iterations in 1:10) {
       var_step_model_4<-names(selection[[4]]$coefficients)[-1]
       var_step_model_5<-names(selection[[5]]$coefficients)[-1]
       
-      paste_together_step_coefficients<-function(var_step_model ){
-        formel<- list()
-        for (entry in 1:length(var_step_model)) {
-          formel<-paste(formel, var_step_model[entry])
-          
-          }
-        
-        return(formel)
-      } 
       
       
       var_step_model_1<- paste_together_step_coefficients(var_step_model_1)
@@ -553,7 +581,8 @@ for (iterations in 1:10) {
       var_step_model_4<-paste_together_step_coefficients(var_step_model_4)
       var_step_model_5<-paste_together_step_coefficients(var_step_model_5)
       
-      step_var_df <- data.frame(var_step_model_1,var_step_model_2,var_step_model_3,var_step_model_4,var_step_model_5)
+      step_var_df_fold <- setNames(data.frame(rbind(var_step_model_1,var_step_model_2,var_step_model_3,var_step_model_4,var_step_model_5)), iteration_name)
+      step_var_df <- cbind(step_var_df,step_var_df_fold)
       
       mse_step_1_fold <- prediction_and_mse(step_model_1, test = test, test_bacteria = test_bacteria)
       mse_step_2_fold <- prediction_and_mse(step_model_2, test = test, test_bacteria = test_bacteria)
@@ -567,40 +596,52 @@ for (iterations in 1:10) {
       mse_list_step_4<- append(mse_list_step_4,mse_step_4_fold)
       mse_list_step_5<- append(mse_list_step_5,mse_step_5_fold)
       
-    
-     # fit_lasso_base <- glmnet(train_sparse, data$log_e.coli , na.rm =T, standardize = F, alpha = 1,relax = F, foldid=foldid)
-      #fit_lasso_base_cross <- cv.glmnet(train_sparse, data$log_e.coli,type.measure="mse", alpha=1, family="gaussian",  nfolds = 5,standardize = F,relax = F, foldid = foldid)#--> alpha =1:  lasso regression
-      fit_lasso_base_stand <- glmnet(train_sparse, data$log_e.coli , na.rm =T, standardize = T, alpha = 1,relax = F, foldid=foldid)
-      fit_lasso_base_cross_stand <- cv.glmnet(train_sparse, data$log_e.coli,type.measure="mse", alpha=1, family="gaussian",  nfolds = 5,standardize = T,relax = F,foldid=foldid)#--> alpha =1:  lasso regressio
-     
-     # fit_elnet_base <- glmnet(train_sparse, data$log_e.coli , na.rm =T, standardize = F, alpha = 0.5,relax = F, foldid=foldid)
-    #  fit_elnet_base_cross <- cv.glmnet(train_sparse, data$log_e.coli,type.measure="mse", alpha=0.5, family="gaussian",  nfolds = 3,standardize = F,relax = F, foldid=T)#--> alpha =1:  lasso regressio
-      fit_elnet_base_stand <- glmnet(train_sparse, data$log_e.coli , na.rm =T, standardize = T, alpha = 0.5,relax = F, foldid=foldid)
-      fit_elnet_base_cross_stand <- cv.glmnet(train_sparse, data$log_e.coli,type.measure="mse", alpha=0.5, family="gaussian",  nfolds = 5,standardize = T,relax = F,foldid=foldid)#--> alpha =1:  lasso regressio
       
       
       
       
-      prediction_and_mse<- function(model, test, test_bacteria){
-        prediction<-predict(model, test)
-        return(mean(sqrt((test_bacteria - prediction)^2)))
-      }
+      
       
       
       
      
      
     }
+    step_var_df<- step_var_df[,-1]
+    rf_var_df <- rf_var_df[,-1]
+    #muss nicht 5x laufen
+    # fit_lasso_base <- glmnet(train_sparse, data$log_e.coli , na.rm =T, standardize = F, alpha = 1,relax = F, foldid=foldid)
+    #fit_lasso_base_cross <- cv.glmnet(train_sparse, data$log_e.coli,type.measure="mse", alpha=1, family="gaussian",  nfolds = 5,standardize = F,relax = F, foldid = foldid)#--> alpha =1:  lasso regression
+    fit_lasso_base_stand <- glmnet(train_sparse, data$log_e.coli , na.rm =T, standardize = T, alpha = 1,relax = F, foldid=foldid)
+    fit_lasso_base_cross_stand <- cv.glmnet(train_sparse, data$log_e.coli,type.measure="mse", alpha=1, family="gaussian",  nfolds = 5,standardize = T,relax = F,foldid=foldid)#--> alpha =1:  lasso regressio
     
-   
+    # fit_elnet_base <- glmnet(train_sparse, data$log_e.coli , na.rm =T, standardize = F, alpha = 0.5,relax = F, foldid=foldid)
+    #  fit_elnet_base_cross <- cv.glmnet(train_sparse, data$log_e.coli,type.measure="mse", alpha=0.5, family="gaussian",  nfolds = 3,standardize = F,relax = F, foldid=T)#--> alpha =1:  lasso regressio
+    fit_elnet_base_stand <- glmnet(train_sparse, data$log_e.coli , na.rm =T, standardize = T, alpha = 0.5,relax = F, foldid=foldid)
+    fit_elnet_base_cross_stand <- cv.glmnet(train_sparse, data$log_e.coli,type.measure="mse", alpha=0.5, family="gaussian",  nfolds = 5,standardize = T,relax = F,foldid=foldid)#--> alpha =1:  lasso regressio
+    
     
     lasso_lambda_min <- which(fit_lasso_base_cross_stand$lambda == fit_lasso_base_cross_stand$lambda.min)
     lasso_lambda_1se <- which(fit_lasso_base_cross_stand$lambda == fit_lasso_base_cross_stand$lambda.1se)
+    #get_variable names of lasso base
+    var_lasso_base_cross_stand_lambda_1se<-get_coef_1se_cv(fit_lasso_base_cross_stand)[[1]]
+    var_lasso_base_cross_stand_lambda_min<-get_coef_min_cv(fit_lasso_base_cross_stand)[[1]]
+    
+    var_lasso_base_cross_stand_lambda_1se<-paste_together_step_coefficients(var_lasso_base_cross_stand_lambda_1se[-1])
+    var_lasso_base_cross_stand_lambda_min<- paste_together_step_coefficients(var_lasso_base_cross_stand_lambda_min[-1])
+    
     mse_lambda_min_lasso <- fit_lasso_base_cross_stand$cvm[lasso_lambda_min]
     mse_lambda_1se_lasso <- fit_lasso_base_cross_stand$cvm[lasso_lambda_1se]
     
     elnet_lambda_min <- which(fit_elnet_base_cross_stand$lambda == fit_elnet_base_cross_stand$lambda.min)
     elnet_lambda_1se <- which(fit_elnet_base_cross_stand$lambda == fit_elnet_base_cross_stand$lambda.1se)
+    
+    var_elnet_base_cross_stand_lambda_1se<-get_coef_1se_cv(fit_elnet_base_cross_stand)[[1]]
+    var_elnet_base_cross_stand_lambda_min<-get_coef_min_cv(fit_elnet_base_cross_stand)[[1]]
+    
+    var_elnet_base_cross_stand_lambda_1se <- paste_together_step_coefficients(var_elnet_base_cross_stand_lambda_1se[-1])
+    var_elnet_base_cross_stand_lambda_min <- paste_together_step_coefficients(var_elnet_base_cross_stand_lambda_min[-1])
+    
     mse_lambda_min_elnet <- fit_elnet_base_cross_stand$cvm[elnet_lambda_min]
     mse_lambda_1se_elnet <- fit_elnet_base_cross_stand$cvm[elnet_lambda_1se]
     
@@ -621,14 +662,37 @@ for (iterations in 1:10) {
      t()
    step_var_df_save <- cbind(step_var_df_save,step_var_df)
    rf_var_df_save <- cbind(rf_var_df_save,rf_var_df)
-   lasso_var_lambda_1se_save<- cbind(lasso_var_lambda_1se_save,lasso_var_lambda_1se)
-   lasso_var_lambda_min_save<-cbind(lasso_var_lambda_min_save,lasso_var_lambda_min)
-   elnet_var_lambda_min_save<-cbind(elnet_var_lambda_min_save,elnet_var_lambda_min)
-   elnet_var_lambda_1se_save<-cbind(elnet_var_lambda_1se_save,elnet_var_lambda_1se)
+   lasso_var_lambda_1se_save<- cbind(lasso_var_lambda_1se_save,var_lasso_base_cross_stand_lambda_1se)
+   lasso_var_lambda_min_save<-cbind(lasso_var_lambda_min_save,var_lasso_base_cross_stand_lambda_min)
+   elnet_var_lambda_min_save<-cbind(elnet_var_lambda_min_save,var_elnet_base_cross_stand_lambda_min)
+   elnet_var_lambda_1se_save<-cbind(elnet_var_lambda_1se_save,var_elnet_base_cross_stand_lambda_1se)
    error_df_algorithms_save <- cbind(error_df_algorithms_save,error_df_algorithms)  
    }    
   }   
 }
+    
+    count_coefficients<-function(entry){ 
+      numb_coefficients<-str_count(entry, "\\+") +1
+      return(numb_coefficients)
+    }
+    
+    
+    step_var_df_save_analysis<-step_var_df_save[,-1]
+    lasso_var_lambda_min_save_analysis<-lasso_var_lambda_min_save_analysis%>% mutate(across(contains('var'), 
+                       .fns = count_coefficients,
+                       .names = paste("coefficients","{col}", sep = "_"))) 
+    
+    
+    lasso_var_lambda_1se_save_analysis[1,2] == lasso_var_lambda_1se_save_analysis[1,2]
+    
+    (strsplit(lasso_var_lambda_1se_save_analysis[1,2]," \\+ "))[[1]][1]
+   
+    }
+    count_coefficients(b)
+    
+    c <- "fg+b"
+    str_count(string = c, pattern = "\\+")
+    
     d<-error_df_algorithms_save[,-c(1:2)]%>%t()
     
     d1<-d %>% colMeans()
@@ -1251,7 +1315,7 @@ erro_df <- data.frame()
   } 
  }
 #fmla
-  }
+  
   #needed to be sure to not change train_rows while analyzing the same dataset with different algorithms
   first_time_model_train <- first_time_model_train +1
   
@@ -1287,7 +1351,7 @@ erro_df <- data.frame()
       
       }
     }
-  }
+  
   if(do_elnet ==T ){
     river_stat_tests$model = paste("elnet_",river_stat_tests$model)
     names(fmla) = paste("elnet_",names(fmla))
@@ -1474,3 +1538,5 @@ par(mfrow = c(1,1))
   
 
 
+
+  

@@ -3,6 +3,7 @@ title: "R Notebook"
 output:
   html_document:
     df_print: paged
+  pdf_document: default
 ---
 
 
@@ -1463,95 +1464,95 @@ What was done:
 
 - split Data (80/20) in Train (data_train) and Test (data_test) 
 
-Used RandomForest,Stepwise and Lasso-regression for featureselection on Train set.
-- builded 5 train, test splits (train_rows) out of Train (data_train)
-- used step-algorithm to select 5  formulas with 1 to 5 features on every train/test split (train_rows) --> 25 formulas
-  - selected features are based on ascending advanced Rˆ2
-- used RandomForest-algorithm to select 5 formulas with 1 to 5 features on every train/test split (train_rows) --> 25 formulas
-  - selected features are based on ascending importance measure (https://www.rdocumentation.org/packages/randomForest/versions/4.6-14/topics/importance)
-- used lasso-regression with cross validation to get formulas from 1 to 5 features. The number of features that are used in a lasso regressin are based on the penalty parameter lambda. The cv.lmnet Lasso function uses 100 different lambda to fit 100 different lasso-regressions and to calculate the MSE with a 5- fold cross validation (same trainrows)
+Used RandomForest,Stepwise and Lasso-regression for featureselection on Train set.  
+- builded 5 train, test splits (train_rows) out of Train (data_train)  
+- used step-algorithm to select 5  formulas with 1 to 5 features on every train/test split (train_rows) --> 25 formulas  
+  - selected features are based on ascending advanced Rˆ2  
+- used RandomForest-algorithm to select 5 formulas with 1 to 5 features on every train/test split (train_rows) --> 25 formulas  
+  - selected features are based on ascending importance measure (https://www.rdocumentation.org/packages/randomForest/versions/4.6-14/topics/importance)  
+- used lasso-regression with cross validation to get formulas from 1 to 5 features. The number of features that are used in a lasso regressin are based on the penalty   parameter lambda. The cv.lmnet Lasso function uses 100 different lambda to fit 100 different lasso-regressions and to calculate the MSE with a 5- fold cross validation (same trainrows)
 
-The found formulas and percentage occurence of the features were combined in the following tables:
-Formulas with only 1 feature and their occurence in percentage.:
+The found formulas and percentage occurence of the features were combined in the following tables:  
+Formulas with only 1 feature and their occurence in percentage.:  
 ```{r}
 occurence_feature_1_analysis[,1:4]
 ```
-Lasso only found the feature : q_mean_mean_12
+Lasso only found the feature : q_mean_mean_12  
 step and RandomForest both found the features : q_mean_mean_12 (in 80% of the train/test_splits from the train_rows)  and q_mean_mean_123 (in 20% of the train/test_splits from the train_rows) 
 
 
 
 
-Formulas with only 2 feature and their occurence in percentage.:
+Formulas with only 2 feature and their occurence in percentage.:  
 ```{r}
 occurence_feature_2_analysis[,1:6]
 ```
 
-Formulas with only 3 feature and their occurence in percentage.:
+Formulas with only 3 feature and their occurence in percentage.:  
 ```{r}
 occurence_feature_3_analysis[,1:9]
 ```
 
-Formulas with only 4 feature and their occurence in percentage.:
+Formulas with only 4 feature and their occurence in percentage.:  
 ```{r}
 occurence_feature_4_analysis[,1:14]
 ```
 
-Formulas with only  feature and their occurence in percentage.:
+Formulas with only  feature and their occurence in percentage.:  
 ```{r}
 occurence_feature_5_analysis[,1:19]
 ```
 
 
-Results:
-- Features found by step and RandomForest are strongly dependend on the given training data. (Here Isar) 
-- Lasso finds always the same formula with the same features
+Results:  
+- Features found by step and RandomForest are strongly dependend on the given training data. (Here Isar)   
+- Lasso finds always the same formula with the same features  
 
 
-Second step:
+Second step:  
+  
+- use the unique found formulas by the three algorithms to build linear models by training them on the whole data_train.   
+- The builded models were used to predict the never seen FIB concentrations from data_test  
+- the model with the lowest mean-squared error on data_test is the best_model. The used formula is the "best formula"  
 
-- use the unique found formulas by the three algorithms to build linear models by training them on the whole data_train. 
-- The builded models were used to predict the never seen FIB concentrations from data_test
-- the model with the lowest mean-squared error on data_test is the best_model. The used formula is the "best formula"
-
-Best Formula with 1 coef:
+Best Formula with 1 coef:  
 
 ```{r}
 best_formula_with_coef_1
 ```
 
-Best Formula with 2 coef:
+Best Formula with 2 coef:  
 
 ```{r}
 best_formula_with_coef_2
 ```
 
-Best Formula with 3 coef:
+Best Formula with 3 coef:  
 
 ```{r}
 best_formula_with_coef_3
 ```
 
 
-Best Formula with 4 coef:
+Best Formula with 4 coef:  
 
 ```{r}
 best_formula_with_coef_4
 ```
 
 
-Best Formula with 5 coef:
+Best Formula with 5 coef:  
 
 ```{r}
 best_formula_with_coef_5
 ```
 
 
-Last step:
+Last step:  
 
-Check if different algorithm types found the "best-formula"
+Check if different algorithm types found the "best-formula"  
 
-All three Algorithms found best formula with n_coef = 1
+All three Algorithms found best formula with n_coef = 1  
 ```{r}
 occurence_feature_1_analysis[,-c(1:4)]
 ```
@@ -1560,34 +1561,34 @@ occurence_feature_1_analysis[,-c(1:4)]
 
 
 
-only lasso and rf found best formula with  n_coef = 2
+only lasso and rf found best formula with  n_coef = 2  
 
 ```{r}
 occurence_feature_2_analysis[,-c(1:6)]
 ```
 
-only rf found best formula with  n_coef = 3
+only rf found best formula with  n_coef = 3  
 
 ```{r}
 occurence_feature_3_analysis[,-c(1:9)]
 ```
 
-only rf found best formula with  n_coef = 4
+only rf found best formula with  n_coef = 4  
 
 ```{r}
 occurence_feature_4_analysis[,-c(1:13)]
 ```
 
-only lasso found best formula with  n_coef = 3
+only lasso found best formula with  n_coef = 5  
 
 ```{r}
 occurence_feature_5_analysis[,-c(1:18)]
 ```
 
 
-Step-algorithm only found in 1 out of 5 cases (20%) the best formula. Only in the one with only 1 variable
+Step-algorithm only found in 1 out of 5 cases (20%) the best formula. Only in the one with only 1 variable  
 
-RandomForest found the best formula in 4 out of 5 cases (80%).
+RandomForest found the best formula in 4 out of 5 cases (80%).  
 
-Lasso found the best formula in 3 out of 5 cases (60%).
+Lasso found the best formula in 3 out of 5 cases (60%).  
 

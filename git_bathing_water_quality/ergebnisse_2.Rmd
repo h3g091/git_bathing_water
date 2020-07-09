@@ -1,3 +1,12 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
 #check random forest
 #for new river instanziere this
 river_stat_model_save <- data.frame()
@@ -1735,7 +1744,7 @@ elnet_var_lambda_min_save<- data.frame(5)
           a<-full_join(step_selected_features,lasso_selected_features)
           b<-full_join(a,rf_selected_features)%>% arrange(features, desc(percentage))
           
-          all_most_selected_features
+          
           
           
           get_most_elected_features <-function(algorithm_most_selected_features){
@@ -1748,6 +1757,17 @@ elnet_var_lambda_min_save<- data.frame(5)
           lasso_most_selected_features<-get_most_elected_features(lasso_selected_features)
           step_most_selected_features<-get_most_elected_features(step_selected_features)
           
+          
+          a<-lasso_found_formulas_and_occurence$found_formulas
+          b<-step_found_formulas_and_occurence$found_formulas
+          c<-rf_found_formulas_and_occurence$found_formulas
+          
+          a$algo <- "lasso"
+          b$algo <- "step"
+          c$algo <- "rf"
+          
+          d<-full_join(a,b)
+          e<- full_join(d,c)
           
           
           #run till here for only selection
@@ -1775,11 +1795,23 @@ elnet_var_lambda_min_save<- data.frame(5)
            #abline(a=0,b=1)
            
             #decide here which formulas will get forwarded to mcmc
-            
-           list_unqiue_formulas_all_algorithms <- list_formulas_all_algorithms[[1]]
+           list_unqiue_formulas_all_algorithms <-df_all_algorithms_with_mse_on_test$formula_with_lowest_mse_on_test
+           #list_unqiue_formulas_all_algorithms$n_features <- 
+           a<-as.data.frame(str_count( list_unqiue_formulas_all_algorithms, pattern = "\\+") +1)
+           a<- as.data.frame (a)
+           df_unqiue_formulas_all_algorithms<-as.data.frame(df_all_algorithms_with_mse_on_test$formula_with_lowest_mse_on_test)
+           df_unqiue_formulas_all_algorithms$n_features <- a
+           
+           max_number_features<-floor(nrow(data_test)/5)
+           
+           
+           filtered_formulas_df<-df_unqiue_formulas_all_algorithms%>% filter(n_features<=max_number_features)
+           
+           list_unqiue_formulas_all_algorithms_filtered<-filtered_formulas_df$`df_all_algorithms_with_mse_on_test$formula_with_lowest_mse_on_test`
+           #list_unqiue_formulas_all_algorithms <- list_formulas_all_algorithms[[1]]
            fb<-list()
            idx<-1
-           for(idx in 1:length(list_unqiue_formulas_all_algorithms)){
+           for(idx in 1:length(list_unqiue_formulas_all_algorithms_filtered)){
             fmla[[idx]]  <- paste("log_e.coli ~ ",list_unqiue_formulas_all_algorithms[idx])
             fb[[idx]] <- lm(fmla[[idx]], data = data) #because of cross validation for mcmc
            }
@@ -1990,7 +2022,7 @@ elnet_var_lambda_min_save<- data.frame(5)
              
              filter( below95 == 5 & below90 == 5& in95 ) %>%
              
-             dplyr::arrange(desc(in50), desc(R2))  
+             dplyr::arrange(desc(in50), MSE)  
            
            
            
@@ -1998,6 +2030,7 @@ elnet_var_lambda_min_save<- data.frame(5)
            sorted_modellist$lasso_formula <- F
            sorted_modellist$rf_formula <- F
            sorted_modellist$step_formula <- F
+           sorted_modellist$elnet_formula <- F
            
            
            for (idx in 1: nrow(sorted_modellist)) {
@@ -2012,8 +2045,11 @@ elnet_var_lambda_min_save<- data.frame(5)
                sorted_modellist$rf_formula[idx] =T
              }else if(!is.na(match(l,unlist(unique_step_formulas)))){
                sorted_modellist$step_formula[idx] =T
+             }else if(!is.na(match(l,unlist(unique_elnet_formulas)))){
+               sorted_modellist$elnet_formula[idx] =T
              }
            }
+           
            
            #how 
            #sum(sorted_modellist$lasso_formula==T)/nrow(sorted_modellist)
@@ -2080,3 +2116,109 @@ elnet_var_lambda_min_save<- data.frame(5)
            }
            
            
+           
+                    river<-"Ruhr"
+
+```
+
+The models were trained with data from `r river` with `r nrow(data) ` number of observations and `r ncol(data)` number of features/variables.
+With ˆ2 nteractions between the features the feature-selection algorithms have `r ncol(df_with_all_variable_names)` to choose from.
+
+As described in the last results, there are 2 train/test splits in this code.
+The first one does an 80%/20% train/test split to examine the performance after the featureselection.
+The second one is done within the feature-selection process, because the chosen features from Random-Forest and Stepwise regression are very dependend on the train/test split. To not miss a possible formula all ever found formulas will get tested against the first test-split.
+
+
+During the selection process were `r length(list_formulas_all_algorithms[[1]])` different formulas selected with `r nrow(all_most_selected_features)` features.
+
+The selected features and their percentage occurences are summarised in the following table:
+
+```{r}
+print(all_most_selected_features, n = 100)
+```
+
+The 1  selected features for Lasso are:
+`r lasso_selected_features `
+The 1 selected features for random forest are:
+`r rf_selected_features `
+The 1 selected features forest for Step are:
+`r step_selected_features `
+
+
+The common features they chose and their occurences are:
+```{r}
+common_features_found
+```
+--> seems like r_mean_mean_123 and ka_mean_mean_12 are two important features for our model (r_mean_mean_12 and r_mean_mean_23 are strongly correlated to r_mean_mean_123)
+
+
+Lasso builded  `r nrow(lasso_found_formulas_and_occurence)` different formulas out of the following  `r ncol(lasso_found_formulas_and_occurence)-1` different features with the following occurences:
+`r lasso_found_formulas_and_occurence[-ncol(lasso_found_formulas_and_occurence)]`
+```{r echo=FALSE}
+lasso_found_formulas_and_occurence$found_formulas
+```
+
+Lasso with the lambda value that led to the MSE in the Selection process selected the formulas:  
+" `r lasso_lambda_min_selected_features_in_different_train_test_splits$formel` "  
+with `r lasso_lambda_min_selected_features_in_different_train_test_splits$n_features` features
+
+Lasso with the lambda value that led to 1standard deviation away from the mse in the Selection process selected the formulas:
+"`r lasso_lambda_1se_selected_features_in_different_train_test_splits$formel`"  
+with `r lasso_lambda_1se_selected_features_in_different_train_test_splits$n_features` features
+
+
+
+Random Forest builded  `r nrow(rf_found_formulas_and_occurence)` different formulas out of the following  `r ncol(rf_found_formulas_and_occurence)-1` different features with the following occurences:
+`r rf_found_formulas_and_occurence[-ncol(rf_found_formulas_and_occurence)]`
+
+```{r echo=FALSE}
+rf_found_formulas_and_occurence$found_formulas
+```
+
+Step  builded  `r nrow(step_found_formulas_and_occurence)` different formulas out of the following  `r ncol(step_found_formulas_and_occurence)-1` different features with the following occurences:
+`r step_found_formulas_and_occurence[-ncol(step_found_formulas_and_occurence)]`
+
+```{r echo=FALSE}
+step_found_formulas_and_occurence$found_formulas
+```
+
+
+
+The Following dataframes contain the found formulas with 1-5 features and how often they were selected from each of the selection-algorithms.
+
+`r occurence_feature_1_analysis`
+
+`r occurence_feature_2_analysis`
+
+`r occurence_feature_3_analysis`
+
+`r occurence_feature_4_analysis`
+
+`r occurence_feature_5_analysis`
+
+
+With the Test set the mean squared errors for the unique formulas were calculated. Additionally 4 columns were added to check if the formula was found by the selection algorithms.
+
+```{r}
+df_all_algorithms_with_mse_on_test
+```
+
+The formula with the smalles MSE on Test-set was found by: elnet with `r str_count(df_all_algorithms_with_mse_on_test$formula_with_lowest_mse_on_test[1], pattern = "\\+")+1` features
+
+The formula with the second smalles MSE on Test-set was found by: lasso with `r str_count(df_all_algorithms_with_mse_on_test$formula_with_lowest_mse_on_test[2], pattern = "\\+")+1` features
+ 
+As we only have 58 Datapoints in our Test/set and rhe first two models so many features the model will most likely overfit and it will most likely not converge in the MCMC-sampling
+As rule of thumb all formulas will be dropped that have less than 5 datapoints per feature (here first and second)
+
+
+With the validation procedure the following sorted_modellist was produced and sorted for an ascending MSE
+
+```{r}
+sorted_modellist
+```
+
+The 6 formulas with the lowest MSe were all found by the step_function
+-7, 9, and 10 from random_forest
+
+
+
