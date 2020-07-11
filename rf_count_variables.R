@@ -466,8 +466,7 @@ elnet_var_lambda_min_save<- data.frame(5)
   
     #foldid
   if(new_train_test_split ==T){
-    train_rows <- list()
-    foldid=sample(rep(seq(5),length=nrow(data_train)))  #fixes the train/test for cv.glmnet
+    foldid=sample(rep(seq(5),length=nrow(data)))  #fixes the train/test for cv.glmnet
     train_rows<- list()
       for (fold in 1:5) {
         train_rows[[fold]]<-datapoints[foldid!=fold]  
@@ -579,7 +578,7 @@ elnet_var_lambda_min_save<- data.frame(5)
       step_df_4_coef<-rbind(step_df_4_coef, new_row_step_df_4_coef)
       step_df_5_coef<-rbind(step_df_5_coef, new_row_step_df_5_coef)
       
-      #remove all columns that areonly 0
+      #remove all columns that are only 0
       # coefficients that a selected from
       step_df_1_coef_save <-remove_all_cols_that_are_zero(step_df_1_coef)
       step_df_2_coef_save <-remove_all_cols_that_are_zero(step_df_2_coef)
@@ -656,7 +655,7 @@ elnet_var_lambda_min_save<- data.frame(5)
       new_row_rf_df_4_coef <- get_new_iteration_row(rf_df_4_coef, rf_formula_41)
       new_row_rf_df_5_coef <- get_new_iteration_row(rf_df_5_coef, rf_formula_51)
      
-      iteration_name<-paste("iterations", iterations,"fold",j,sep = "_")
+      #iteration_name<-paste("iterations", iterations,"fold",j,sep = "_")
       #naming_new_row
       row.names(new_row_rf_df_1_coef) <- iteration_name
       row.names(new_row_rf_df_2_coef) <- iteration_name
@@ -1553,6 +1552,9 @@ elnet_var_lambda_min_save<- data.frame(5)
            unique_rf_formulas<-unique(unlist(list(unique_rf_formulas_coef_1,unique_rf_formulas_coef_2,unique_rf_formulas_coef_3,unique_rf_formulas_coef_4,unique_rf_formulas_coef_5)))
            
            #added lambda_1se not lambda_min because to much features selected
+           unique_lasso_formulas <- list()
+           unique_elnet_formulas <- list()
+           
            unique_lasso_formulas<-unique(unlist(list(unique_lasso_formulas_coef_1,unique_lasso_formulas_coef_2,unique_lasso_formulas_coef_3,unique_lasso_formulas_coef_4,unique_lasso_formulas_coef_5, unique_lasso_formulas_coef_lambda_1se,unique_lasso_formulas_coef_lambda_min)))
            unique_elnet_formulas<-unique(unlist(list(unique_elnet_formulas_coef_lambda_1se,unique_elnet_formulas_coef_lambda_min)))
            
@@ -1735,7 +1737,7 @@ elnet_var_lambda_min_save<- data.frame(5)
           a<-full_join(step_selected_features,lasso_selected_features)
           b<-full_join(a,rf_selected_features)%>% arrange(features, desc(percentage))
           
-          all_most_selected_features
+          
           
           
           get_most_elected_features <-function(algorithm_most_selected_features){
@@ -1748,6 +1750,17 @@ elnet_var_lambda_min_save<- data.frame(5)
           lasso_most_selected_features<-get_most_elected_features(lasso_selected_features)
           step_most_selected_features<-get_most_elected_features(step_selected_features)
           
+          
+          a<-lasso_found_formulas_and_occurence$found_formulas
+          b<-step_found_formulas_and_occurence$found_formulas
+          c<-rf_found_formulas_and_occurence$found_formulas
+          
+          a$algo <- "lasso"
+          b$algo <- "step"
+          c$algo <- "rf"
+          
+          d<-full_join(a,b)
+          e<- full_join(d,c)
           
           
           #run till here for only selection
@@ -1775,11 +1788,23 @@ elnet_var_lambda_min_save<- data.frame(5)
            #abline(a=0,b=1)
            
             #decide here which formulas will get forwarded to mcmc
-            
-           list_unqiue_formulas_all_algorithms <- list_formulas_all_algorithms[[1]]
+           list_unqiue_formulas_all_algorithms <-df_all_algorithms_with_mse_on_test$formula_with_lowest_mse_on_test
+           #list_unqiue_formulas_all_algorithms$n_features <- 
+           a<-as.data.frame(str_count( list_unqiue_formulas_all_algorithms, pattern = "\\+") +1)
+           a<- as.data.frame (a)
+           df_unqiue_formulas_all_algorithms<-as.data.frame(df_all_algorithms_with_mse_on_test$formula_with_lowest_mse_on_test)
+           df_unqiue_formulas_all_algorithms$n_features <- a
+           list_unqiue_formulas_all_algorithms <-df_all_algorithms_with_mse_on_test$formula_with_lowest_mse_on_test
+           max_number_features<-floor(nrow(data_test)/5)
+           
+           
+           filtered_formulas_df<-df_unqiue_formulas_all_algorithms%>% filter(n_features<=max_number_features)
+           
+           list_unqiue_formulas_all_algorithms_filtered<-filtered_formulas_df$`df_all_algorithms_with_mse_on_test$formula_with_lowest_mse_on_test`
+           #list_unqiue_formulas_all_algorithms <- list_formulas_all_algorithms[[1]]
            fb<-list()
            idx<-1
-           for(idx in 1:length(list_unqiue_formulas_all_algorithms)){
+           for(idx in 1:length(list_unqiue_formulas_all_algorithms_filtered)){
             fmla[[idx]]  <- paste("log_e.coli ~ ",list_unqiue_formulas_all_algorithms[idx])
             fb[[idx]] <- lm(fmla[[idx]], data = data) #because of cross validation for mcmc
            }
@@ -1990,7 +2015,7 @@ elnet_var_lambda_min_save<- data.frame(5)
              
              filter( below95 == 5 & below90 == 5& in95 ) %>%
              
-             dplyr::arrange(desc(in50), desc(R2))  
+             dplyr::arrange(desc(in50), MSE)  
            
            
            
@@ -1998,6 +2023,7 @@ elnet_var_lambda_min_save<- data.frame(5)
            sorted_modellist$lasso_formula <- F
            sorted_modellist$rf_formula <- F
            sorted_modellist$step_formula <- F
+           sorted_modellist$elnet_formula <- F
            
            
            for (idx in 1: nrow(sorted_modellist)) {
@@ -2012,8 +2038,11 @@ elnet_var_lambda_min_save<- data.frame(5)
                sorted_modellist$rf_formula[idx] =T
              }else if(!is.na(match(l,unlist(unique_step_formulas)))){
                sorted_modellist$step_formula[idx] =T
+             }else if(!is.na(match(l,unlist(unique_elnet_formulas)))){
+               sorted_modellist$elnet_formula[idx] =T
              }
            }
+           
            
            #how 
            #sum(sorted_modellist$lasso_formula==T)/nrow(sorted_modellist)

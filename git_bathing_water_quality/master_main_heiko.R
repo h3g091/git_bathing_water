@@ -1,5 +1,6 @@
 #preload packages
 {
+  library(compare)
   library(broom)
   library(caret)
   library(magrittr)
@@ -31,14 +32,32 @@
   
   #river_paths <- list(havel = "Y:/SUW_Department/Projects/FLUSSHYGIENE/Data-Work packages/Daten/Daten_TestPackage_Berlin/Havel/DATA_preprocessed_csv")
   
-  #river_paths <- list(havel = "/Users/heiko.langer/Masterarbeit_lokal/Data_preprocess/Daten_TestPackage_Berlin/Havel/DATA_preprocessed_csv" )
-  #river_paths <- list(havel = "/Users/heiko.langer/Masterarbeit_lokal/Data_preprocess/Daten_Bayern/Isar/DATA_preprocessed_csv")
-  #river_paths <- list(havel = "/Users/heiko.langer/Masterarbeit_lokal/Data_preprocess/Daten_Bayern/Ilz/DATA_preprocessed_csv" )
+  river_paths1 <- list(havel = "/Users/heiko.langer/Masterarbeit_lokal/Data_preprocess/Daten_TestPackage_Berlin/Havel/DATA_preprocessed_csv" )
+  river_paths2 <- list(havel = "/Users/heiko.langer/Masterarbeit_lokal/Data_preprocess/Daten_Bayern/Isar/DATA_preprocessed_csv")
+  river_paths3 <- list(havel = "/Users/heiko.langer/Masterarbeit_lokal/Data_preprocess/Daten_Bayern/Ilz/DATA_preprocessed_csv" )
   
-  #river_paths<-list(havel = "/Users/heiko.langer/Masterarbeit_lokal/Data_preprocess/Daten_Rhein_Mosel_Lahn/Mosel/DATA_preprocessed_csv")
-  #river_paths<-list(havel = "/Users/heiko.langer/Masterarbeit_lokal/Data_preprocess/Daten_Rhein_Mosel_Lahn/Rhein/DATA_preprocessed_csv")
+  river_paths4<-list(havel = "/Users/heiko.langer/Masterarbeit_lokal/Data_preprocess/Daten_Rhein_Mosel_Lahn/Mosel/DATA_preprocessed_csv")
+  river_paths5<-list(havel = "/Users/heiko.langer/Masterarbeit_lokal/Data_preprocess/Daten_Rhein_Mosel_Lahn/Rhein/DATA_preprocessed_csv")
   
-  river_paths<-list(havel = "/Users/heiko.langer/Masterarbeit_lokal/Data_preprocess/Daten_Ruhr/Ruhr/DATA_preprocessed_csv")
+  river_paths6<-list(havel = "/Users/heiko.langer/Masterarbeit_lokal/Data_preprocess/Daten_Ruhr/Ruhr/DATA_preprocessed_csv")
+  list_river_pathes<- list(river_paths1,river_paths2,river_paths3,river_paths4,river_paths5,river_paths6)
+}
+#INSTANZIERUNG
+list_sorted_modellist <- list()
+list_analysis_df <- list()
+list_unique_found_formulas<-list()
+
+list_list_unique_step_formulas<-list()
+list_list_unique_lasso_formulas<-list()
+list_list_unique_rf_formulas<-list()
+list_list_unique_elnet_formulas<-list()
+
+
+
+for (river_path_river in list_river_pathes) {
+  river_paths<-river_path_river
+
+{
   calc_t <- function (datalist=river_data$havel, onlysummer) {
     #heiko
     #datalist<- river_data1$havel
@@ -98,7 +117,7 @@
     
   }
 }
-
+{
 river_data <- lapply(river_paths, kwb.flusshygiene::import_riverdata)
 names(river_data) <- rivers
 {
@@ -834,7 +853,7 @@ for (indx_fold in 1:length(train_rows)) {
   list_unique_lasso_formulas <- append(list_unique_lasso_formulas,unique_lasso_formulas)
   list_unique_elnet_formulas <- append(list_unique_elnet_formulas,unique_elnet_formulas)
   
-  do_mcmc<-T
+  do_mcmc<-F
   if (do_mcmc==T) {
     list_unqiue_formulas_all_algorithms <-df_all_algorithms_with_mse_on_test$formula_with_lowest_mse_on_test
     
@@ -1010,12 +1029,39 @@ list_unique_lasso_formulas<- unique(unlist(list_unique_lasso_formulas))
 list_unique_elnet_formulas<- unique(unlist(list_unique_elnet_formulas))
 list_unique_rf_formulas<- unique(unlist(list_unique_rf_formulas))
 
-step_features_occurence<-get_occurences_glmnet_feature_selection(step_features_occurence, list_unique_step_formulas)
-rf_features_occurence<-get_occurences_glmnet_feature_selection(rf_features_occurence, list_unique_rf_formulas)
-lasso_features_occurence<-get_occurences_glmnet_feature_selection(lasso_features_occurence, list_unique_lasso_formulas)
-elnet_features_occurence<-get_occurences_glmnet_feature_selection(elnet_features_occurence, list_unique_elnet_formulas)
+calc_col_means <- function(df_x_coef_save){
+  #df_x_coef_save<-rf_features_occurence
+  new_df <- as.data.frame(colMeans(df_x_coef_save[-c((ncol(df_x_coef_save)-1):ncol(df_x_coef_save))]))
+  new_df <- new_df %>% t()
+  new_df<-as.data.frame(new_df)
+  for (indx in 1:(ncol(df_x_coef_save)-2)) {
+    #indx<-6
+    df_x_coef_save[df_x_coef_save[indx]!=0,indx]<- new_df[indx]
+  }
+  #df_x_coef_save$ka_mean_mean_123[df_x_coef_save$ka_mean_mean_123!=0]<- new_df$ka_mean_mean_123
+  
+  
+  
+  #new_df <- cbind(new_df,colMeans(df_x_coef_save$mse))
+  #colnames(new_df)[ncol(new_df)] <- "MSE"
+  
+  #new_df <- cbind(new_df,mean(df_x_coef_save$n_features))
+  #colnames(new_df)[ncol(new_df)] <- "n_features"
+  
+  
+  #new_rowname<-deparse(substitute(df_x_coef_save))
+  #rownames(new_df)<-deparse(substitute(df_x_coef_save))
+  #new_df<- as.data.frame(new_df)
+  return(df_x_coef_save)
+}
+step_features_occurence<-calc_col_means(get_occurences_glmnet_feature_selection(step_features_occurence, list_unique_step_formulas))
+rf_features_occurence<-calc_col_means(get_occurences_glmnet_feature_selection(rf_features_occurence, list_unique_rf_formulas))
+lasso_features_occurence<-calc_col_means(get_occurences_glmnet_feature_selection(lasso_features_occurence, list_unique_lasso_formulas))
+elnet_features_occurence<-calc_col_means(get_occurences_glmnet_feature_selection(elnet_features_occurence, list_unique_elnet_formulas))
 
-#analysis - frequentistic
+
+
+
 list_all_found_formulas <- list()
 for (indx in 1:length(list_df_all_algorithms_with_mse_on_test)) {
   a<-list_df_all_algorithms_with_mse_on_test[[indx]]$formula_with_lowest_mse_on_test  
@@ -1024,6 +1070,211 @@ for (indx in 1:length(list_df_all_algorithms_with_mse_on_test)) {
 
 unique_found_formulas<-unique(unlist(list_all_found_formulas))
 
+#mcmc
+do_mcmc<-T
+  if (do_mcmc==T) {
+  list_unqiue_formulas_all_algorithms <-unique_found_formulas
+  
+  #list_unqiue_formulas_all_algorithms <- list_formulas_all_algorithms[[1]]
+  fb<-list()
+  idx<-1
+  for(idx in 1:length(list_unqiue_formulas_all_algorithms)){
+    fmla[[idx]]  <- paste("log_e.coli ~ ",list_unqiue_formulas_all_algorithms[idx])
+    fb[[idx]] <- lm(fmla[[idx]], data = data_train) #because of cross validation for mcmc
+  }
+  
+  ################ Validation ########################
+  
+  names(fb) <- sprintf(paste0(river,"model_%02d"), seq_along(1:length(fb)))
+  
+  # calculate statistical tests for residuals: Normality and s2 = const
+  
+  # shapiro-wilk test and breusch-pagan test
+  
+  get_stat_tests <- function(model) {
+    c(N = shapiro.test(model$residuals)$p.value, lmtest::bptest(model)$p.value,
+      R2 = summary(model)[["adj.r.squared"]], n_obs = length(model$residuals))
+    
+  }
+  
+  
+  # testing for classical statistical model assumtions, normality of residuals and
+  
+  # heteroskelasdicity   #t() transpose
+  river_stat_tests <- sapply(fb, get_stat_tests)%>%
+    t() %>%
+    dplyr::as_tibble(rownames = "model")  %>%
+    dplyr::bind_rows(.id = "river") %>%
+    dplyr::mutate(stat_correct = N > .05 & BP > .05)
+  
+  
+  
+  # creating list of independent training rows
+  #-test/train split
+  
+  #weirde zeile, setze alle stat tests auf 0
+  river_stat_tests$in95 <- river_stat_tests$below95 <-river_stat_tests$below90 <- river_stat_tests$in50 <- river_stat_tests$MSE <- 0
+  
+  if(class(fmla[[length(fmla)]]) !="formula"){
+    print("new element is no formula!!")
+  }
+  
+  test_beta <- function(true, false, percentile){
+    if( pbeta(q = percentile, shape1 = true + 1, shape2 = false + 1) > 0.05){
+      TRUE}
+    else{FALSE}
+    
+  }
+  
+  
+  names(fmla) <- sprintf(paste0(river,"model_%02d"), seq_along(1:length(fb)))
+  
+  counter<-0
+  
+  erro_df <- data.frame()
+  
+  #cross validation   needs fb, and fmla
+  
+  { 
+    for(i in names(fb)){
+      #i<- names(fb)[1]
+      counter<- counter+1
+      #i="havelmodel_01"
+      test_error_df_model <- data.frame()
+      assign(paste(i,"_test_error_df_model",sep = ""),test_error_df_model)
+      
+      for(j in 1:5){
+      counter <- counter+1
+      # j=1
+      
+      data_train <- data[train_rows[[indx_fold]],]
+      data_train <-data.frame(scale(data_train))
+      #test_data fold
+      data_test <- data[-train_rows[[indx_fold]],]
+      data_test <-data.frame(scale(data_test))
+      
+      train_bacteria <- data_train$log_e.coli
+      test_bacteria <- data_test$log_e.coli
+      #training <- as.data.frame(fb[[i]]$model)[c(train_rows[[j]]),]
+      #training <- as.data.frame(fb[[6]]$model)[c(train_rows[[1]]),]
+      #test <- as.data.frame(fb[[i]]$model)[-c(train_rows[[j]]),]
+      #test <- as.data.frame(fb[[6]]$model)[-c(train_rows[[1]]),]
+      #formel<-formula(formula_heiko_1)
+      
+      
+      #fmla[6]<- list(formel)
+      
+      
+      
+      fit <- rstanarm::stan_glm(fmla[[i]], data = data_train ) #fitting
+      #fit <- rstanarm::stan_glm(fmla[[1]], data = training) #fitting
+      
+      
+      df <- apply(rstanarm::posterior_predict(fit, newdata = data_test), 2, quantile, #predicting
+                  
+                  probs = c(0.025, 0.25, 0.5 , 0.75, 0.9, 0.95, 0.975)) %>% t() %>% as.data.frame() %>%
+        
+        dplyr::mutate(log_e.coli = data_test$log_e.coli, #evaluating ther model has to be classified correctly with every single test train split
+                      #--> here 5 different splits, if all validations correct than everywhere ==5
+                      
+                      below95 = log_e.coli < `95%`,
+                      
+                      below90 = log_e.coli < `90%`,
+                      
+                      within95 = log_e.coli < `97.5%`& log_e.coli > `2.5%`,
+                      
+                      within50 = log_e.coli < `75%`& log_e.coli > `25%`,
+                      
+        ) 
+      #error on testset
+      test_error_df_temp<- df%>%select(log_e.coli,`50%`)%>% mutate(squared_error = ((log_e.coli - `50%`)^2))
+      test_error_df_model<- test_error_df_model %>% rbind(test_error_df_temp)
+      
+      assign(paste(i,"_test_error_df_model", sep = ""),test_error_df_model)
+      #validation step if all percentile categories are set to 1
+      
+      river_stat_tests$in95[river_stat_tests$model == i] <-
+        
+        river_stat_tests$in95[river_stat_tests$model == i] +
+        
+        test_beta(true = sum(df$within95), false = sum(!df$within95), percentile = .95 ) #is 1 if true
+      
+      river_stat_tests$below95[river_stat_tests$model == i] <-
+        
+        river_stat_tests$below95[river_stat_tests$model == i] +
+        
+        test_beta(true = sum(df$below95), false = sum(!df$below95), percentile = .95 )
+      
+      river_stat_tests$below90[river_stat_tests$model == i] <-
+        
+        river_stat_tests$below90[river_stat_tests$model == i] +
+        
+        test_beta(true = sum(df$below90), false = sum(!df$below90), percentile = .90 )
+      
+      river_stat_tests$in50[river_stat_tests$model == i] <-
+        
+        river_stat_tests$in50[river_stat_tests$model == i] +
+        
+        
+        #beta test
+        test_beta(true = sum(df$within50), false = sum(!df$within50), .5)
+      #add MSE to stat_tests
+      river_stat_tests$MSE[river_stat_tests$model == i] <- mean(test_error_df_model$squared_error)
+      
+      
+      #add selected features and coeeficients to statistical test
+      river_stat_tests$selected_features[river_stat_tests$model == i] <- list((fmla[[i]]))
+      #river_stat_tests$selected_features[river_stat_tests$model == i] <- list(all.vars(fmla[[i]]))
+      river_stat_tests$coef_selected[river_stat_tests$model == i]<- list(coef(fb[[i]]))
+      
+      #list_river_stat_tests<- append(list_river_stat_tests, list(river_stat_tests))
+      
+      } 
+      
+    } 
+  }
+  
+  
+  
+  
+  
+  
+  
+}
+
+sorted_modellist <- river_stat_tests %>%
+  filter( below95 == 5 & below90 == 5& in95 ) %>%
+  dplyr::arrange(desc(in50), MSE)  
+
+
+
+#check if formula was found by algorithm
+sorted_modellist$lasso_formula <- F
+sorted_modellist$rf_formula <- F
+sorted_modellist$step_formula <- F
+sorted_modellist$elnet_formula <- F
+
+
+for (idx in 1: nrow(sorted_modellist)) {
+  #idx<-3
+  selected_features_posterior<-sorted_modellist[idx,]$selected_features[[1]][1]
+  g<-str_split(selected_features_posterior,"~  ")
+  l<-g[[1]][2]
+  #l <- selected_features_posterior
+  if(!is.na(match(l,unlist(list_unique_lasso_formulas)))){
+    sorted_modellist$lasso_formula[idx] =T
+  }else if(!is.na(match(l,unlist(list_unique_rf_formulas)))){
+    sorted_modellist$rf_formula[idx] =T
+  }else if(!is.na(match(l,unlist(list_unique_step_formulas)))){
+    sorted_modellist$step_formula[idx] =T
+  }else if(!is.na(match(l,unlist(list_unique_elnet_formulas)))){
+    sorted_modellist$elnet_formula[idx] =T
+  }
+}
+
+
+
+#analysis - frequentistic
 analysis_df <- data.frame(unique_found_formulas)
 analysis_df$mse <- 5
 
@@ -1045,39 +1296,52 @@ for (formula_indx in 1:nrow(analysis_df)) {
 analysis_df<-analysis_df%>%arrange(desc(found_n_times),mse)
 
 
+list_sorted_modellist <- append(list_sorted_modellist, list(sorted_modellist))
+list_analysis_df <- append(list_analysis_df, list(analysis_df))
+list_unique_found_formulas<-append(list_unique_found_formulas,list(unique_found_formulas))
+
+list_list_unique_step_formulas<-append(list_list_unique_step_formulas,list(list_unique_step_formulas))
+list_list_unique_lasso_formulas<-append(list_list_unique_lasso_formulas,list(list_unique_lasso_formulas))
+list_list_unique_rf_formulas<-append(list_list_unique_rf_formulas,list(list_unique_rf_formulas))
+list_list_unique_elnet_formulas<-append(list_list_unique_elnet_formulas,list(list_unique_elnet_formulas))
+}
+  
+}
+
+
+
+
+havel_sorted_modellist <- as_tibble(list_sorted_modellist[1:18])
+isar_sorted_modellist  <- as_tibble(list_sorted_modellist[19:36])
+ila_sorted_modellist <- as_tibble(list_sorted_modellist[37:54])
+mosel_sorted_modellist <- as_tibble(list_sorted_modellist[55:72] )
+rhein_sorted_modellist <- as_tibble(list_sorted_modellist[73:90])
+rhur_sorted_modellist <- as_tibble(list_sorted_modellist[91:108])
+
 #mcmc analysis
 
 #select only models that are validated - sorted by desc R2 - but is this a good kpi??
-sorted_modellist <- river_stat_tests %>%
-  
-  filter( below95 == 5 & below90 == 5& in95 ) %>%
-  
-  dplyr::arrange(desc(in50), MSE)  
 
 
 
-#check if formula was found by algorithm
-sorted_modellist$lasso_formula <- F
-sorted_modellist$rf_formula <- F
-sorted_modellist$step_formula <- F
-sorted_modellist$elnet_formula <- F
 
 
-for (idx in 1: nrow(sorted_modellist)) {
-  #idx<-1
-  selected_features_posterior<-sorted_modellist[idx,]$selected_features[[1]][1]
-  g<-str_split(selected_features_posterior,"~  ")
-  l<-g[[1]][2]
-  
-  if(!is.na(match(l,unlist(unique_lasso_formulas)))){
-    sorted_modellist$lasso_formula[idx] =T
-  }else if(!is.na(match(l,unlist(unique_rf_formulas)))){
-    sorted_modellist$rf_formula[idx] =T
-  }else if(!is.na(match(l,unlist(unique_step_formulas)))){
-    sorted_modellist$step_formula[idx] =T
-  }else if(!is.na(match(l,unlist(unique_elnet_formulas)))){
-    sorted_modellist$elnet_formula[idx] =T
-  }
-}
+list_river_stat_tests[[1]]
+fold_1_mcmc<-list_river_stat_tests[[13]]$selected_features
+fold_2_mcmc<-list_river_stat_tests[[29]]$selected_features
+fold_3_mcmc<-list_river_stat_tests[[44]]$selected_features
+fold_4_mcmc<-list_river_stat_tests[[59]]$selected_features
+fold_5_mcmc<-list_river_stat_tests[[73]]$selected_features
+ 
+Reduce(intersect, list(fold_1_mcmc,fold_2_mcmc,fold_3_mcmc,fold_4_mcmc,fold_5_mcmc))
+
+inner_join(fold_1_mcmc,fold_2_mcmc)
+
+
+comparison <- compare(fold_1_mcmc$selected_features[[5]], fold_2_mcmc$selected_features, allowAll =    T)
+comparison
+fold_1_mcmc$selected_features[[3]]
+
+
 
 
