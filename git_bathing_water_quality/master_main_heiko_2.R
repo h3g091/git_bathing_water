@@ -40,25 +40,32 @@
   river_paths5<-list(havel = "/Users/heiko.langer/Masterarbeit_lokal/Data_preprocess/Daten_Rhein_Mosel_Lahn/Rhein/DATA_preprocessed_csv")
   
   river_paths6<-list(havel = "/Users/heiko.langer/Masterarbeit_lokal/Data_preprocess/Daten_Ruhr/Ruhr/DATA_preprocessed_csv")
-  list_river_pathes<- list(river_paths1,river_paths2)#,river_paths3,river_paths4,river_paths5,river_paths6)
+  list_river_pathes<- list(river_paths1,river_paths2,river_paths3,river_paths4,river_paths5,river_paths6)
 }
 #INSTANZIERUNG
-list_sorted_modellist <- list()
-list_analysis_df <- list()
-list_unique_found_formulas<-list()
+river_list_analysis_df <- list()
 
-list_list_unique_step_formulas<-list()
-list_list_unique_lasso_formulas<-list()
-list_list_unique_rf_formulas<-list()
-list_list_unique_elnet_formulas<-list()
+river_list_river_stat_tests<- list()
+river_list_sorted_modellist <-list()
 
-list_rf_feature_occurence<- list()
-list_step_feature_occurence<- list()
-list_lasso_feature_occurence<- list()
-list_elnet_feature_occurence<- list()
+river_list_unique_found_formulas<-list()
+
+river_list_unique_step_formulas<-list()
+river_list_unique_lasso_formulas<-list()
+river_list_unique_rf_formulas<-list()
+river_list_unique_elnet_formulas<-list()
+
+river_list_rf_feature_occurence<- list()
+river_list_step_feature_occurence<- list()
+river_list_lasso_feature_occurence<- list()
+river_list_elnet_feature_occurence<- list()
+
+
+river_list_df_all_algorithms_with_mse_on_test<-list()
 
 for (river_path_river in list_river_pathes) {
   river_paths<-river_path_river
+
   #river_paths<- river_paths1
   {
     calc_t <- function (datalist=river_data$havel, onlysummer) {
@@ -120,7 +127,7 @@ for (river_path_river in list_river_pathes) {
       
     }
   }
-  {
+  
     river_data <- lapply(river_paths, kwb.flusshygiene::import_riverdata)
     names(river_data) <- rivers
     {
@@ -233,7 +240,7 @@ for (river_path_river in list_river_pathes) {
     
     
     
-    list_df_all_algorithms_with_mse_on_test<-list()
+    
     #saving all selected features during every fold
     list_unique_step_formulas <- list()
     list_unique_rf_formulas <- list()
@@ -248,7 +255,7 @@ for (river_path_river in list_river_pathes) {
     list_river_stat_tests<-list()
     #feature selection
     for (indx_fold in 1:length(train_rows)) {
-      
+
       #instanzierung dataframes for coefficients
       {
         rf_df_1_coef <- build_rename_cols_to_variable_names(df_with_all_variable_names)
@@ -476,7 +483,8 @@ for (river_path_river in list_river_pathes) {
         step_df_5_coef_save <-remove_all_cols_that_are_zero(step_df_5_coef)
         
         unique_step_formulas<-unique(unlist(list(step_df_1_coef_save$formel,step_df_2_coef_save$formel,step_df_3_coef_save$formel,step_df_4_coef_save$formel,step_df_5_coef_save$formel)))
-        list_unique_step_formulas <- unique(append(list_unique_step_formulas, unique_step_formulas))
+        
+        list_unique_step_formulas <- unique(unlist(append(list_unique_step_formulas, list(unique_step_formulas))))
       }
       #step selection ende
       
@@ -511,7 +519,7 @@ for (river_path_river in list_river_pathes) {
       }
       {
         rf_formula_11<-build_formula(imp_rf[1,2])
-        rf_formula_21<-build_formula(imp_rf[1:2,2])
+        rf_formula_21<-build_formula(imp_rf[1:2,2]) #most important 1:2
         rf_formula_31<-build_formula(imp_rf[1:3,2])
         rf_formula_41<-build_formula(imp_rf[1:4,2])
         rf_formula_51<-build_formula(imp_rf[1:5,2])
@@ -553,7 +561,7 @@ for (river_path_river in list_river_pathes) {
         
         unique_rf_formulas<-unique(unlist(list(rf_df_1_coef_save$formel,rf_df_2_coef_save$formel,rf_df_3_coef_save$formel,rf_df_4_coef_save$formel,rf_df_5_coef_save$formel)))
         
-        list_unique_rf_formulas <- unique(append(list_unique_rf_formulas, unique_rf_formulas))
+        list_unique_rf_formulas <- unique(unlist(append(list_unique_rf_formulas, list(unique_rf_formulas))))
         
       }
       
@@ -657,7 +665,7 @@ for (river_path_river in list_river_pathes) {
       
       unique_lasso_formulas<-unique(unlist(list(lasso_df_1_coef_save$formel,lasso_df_2_coef_save$formel,lasso_df_3_coef_save$formel,lasso_df_4_coef_save$formel,lasso_df_5_coef_save$formel)))
       
-      list_unique_lasso_formulas <- unique(append(list_unique_lasso_formulas, unique_lasso_formulas))
+      list_unique_lasso_formulas <- unique(unlist(append(list_unique_lasso_formulas, list(unique_lasso_formulas))))
       
       #end lasso
       
@@ -707,12 +715,21 @@ for (river_path_river in list_river_pathes) {
       
       unique_elnet_formulas<-unique(unlist(list(elnet_df_1_coef_save$formel,elnet_df_2_coef_save$formel,elnet_df_3_coef_save$formel,elnet_df_4_coef_save$formel,elnet_df_5_coef_save$formel)))
       
-      list_unique_elnet_formulas <- unique(append(list_unique_elnet_formulas, unique_elnet_formulas))
+      list_unique_elnet_formulas <- unique(unlist(append(list_unique_elnet_formulas, list(unique_elnet_formulas))))
       #end elnet
       
       
       #end of selection --> now get fold_mse
+      
+      
+      
     }
+    #save all formulas from acual river
+    river_list_unique_step_formulas<-append(river_list_unique_step_formulas,list(list_unique_step_formulas))
+    river_list_unique_lasso_formulas<-append(river_list_unique_lasso_formulas,list(list_unique_lasso_formulas))
+    river_list_unique_rf_formulas<-append(river_list_unique_rf_formulas,list(list_unique_rf_formulas))
+    river_list_unique_elnet_formulas<-append(river_list_unique_elnet_formulas,list(list_unique_elnet_formulas))
+
     #all unique formulas
     all_unique_selected_formulas <- unique(unlist(list(list_unique_step_formulas,list_unique_rf_formulas,list_unique_lasso_formulas, list_unique_elnet_formulas)))
     
@@ -721,7 +738,11 @@ for (river_path_river in list_river_pathes) {
     unique_elnet_formulas <-  unique(unlist(list_unique_elnet_formulas))
     unique_lasso_formulas <-  unique(unlist(list_unique_lasso_formulas))
     
+   
     
+   
+    
+  
       {
         prediction_and_mse<- function(model1, test1, test_bacteria1){
           #model1<-rf_model_1
@@ -739,7 +760,7 @@ for (river_path_river in list_river_pathes) {
       }
       
       #unique formulas with 1-5 coefficients
-      
+      #not functional right now
       list_unqiue_formulas_all_algorithms_coef_1 <-unique(unlist(list(rf_df_1_coef_save$formel ,step_df_1_coef_save$formel,lasso_df_1_coef_save$formel,elnet_df_1_coef_save$formel )))
       list_unqiue_formulas_all_algorithms_coef_2 <-unique(unlist(list(rf_df_2_coef_save$formel ,step_df_2_coef_save$formel,lasso_df_2_coef_save$formel,elnet_df_2_coef_save$formel )))
       list_unqiue_formulas_all_algorithms_coef_3 <-unique(unlist(list(rf_df_3_coef_save$formel ,step_df_3_coef_save$formel,lasso_df_3_coef_save$formel,elnet_df_3_coef_save$formel )))
@@ -779,6 +800,7 @@ for (river_path_river in list_river_pathes) {
         }
       }
       list_df_mse_adj_r_squared_all_algorithms <-list()
+      
       #new for loop for mse calculation over all training errors
       for (indx_fold in 1:length(train_rows)) {
         data_train <- data[train_rows[[indx_fold]],]
@@ -796,9 +818,6 @@ for (river_path_river in list_river_pathes) {
         
       }
       
-    
-      
-    
       #do mse
       mse_adj_r_2_fold_1<-as.data.frame(list_df_mse_adj_r_squared_all_algorithms[[1]])
       mse_adj_r_2_fold_2<-as.data.frame(list_df_mse_adj_r_squared_all_algorithms[[2]])
@@ -810,7 +829,6 @@ for (river_path_river in list_river_pathes) {
       
       df_all_algorithms_with_mse_on_test$mse <- rowMeans(cbind(mse_adj_r_2_fold_1$mse,mse_adj_r_2_fold_2$mse,mse_adj_r_2_fold_3$mse,mse_adj_r_2_fold_4$mse,mse_adj_r_2_fold_5$mse))
       df_all_algorithms_with_mse_on_test$adj.r.squared <- rowMeans(cbind(mse_adj_r_2_fold_1$adj.r.squared,mse_adj_r_2_fold_2$adj.r.squared,mse_adj_r_2_fold_3$adj.r.squared,mse_adj_r_2_fold_4$adj.r.squared,mse_adj_r_2_fold_5$adj.r.squared))
-      
       
       
       formula_mse_on_test_coef_1<-calc_mse_for_unique_formulas_with_test_set(list_unqiue_formulas_all_algorithms_coef_1)
@@ -896,181 +914,19 @@ for (river_path_river in list_river_pathes) {
       
       
       #letzte klammer!
-      
-      list_df_all_algorithms_with_mse_on_test<-df_all_algorithms_with_mse_on_test  
+      df_all_algorithms_with_mse_on_test<-df_all_algorithms_with_mse_on_test%>%arrange(desc(adj.r.squared))
+      #save river
+      river_list_df_all_algorithms_with_mse_on_test<-append(river_list_df_all_algorithms_with_mse_on_test, list(df_all_algorithms_with_mse_on_test))
       
       #list_unique_step_formulas <- append(list_unique_step_formulas,unique_step_formulas)
       #list_unique_rf_formulas <- append(list_unique_rf_formulas,unique_rf_formulas)
       #list_unique_lasso_formulas <- append(list_unique_lasso_formulas,unique_lasso_formulas)
       #list_unique_elnet_formulas <- append(list_unique_elnet_formulas,unique_elnet_formulas)
-      #old mcmc
-      do_mcmc<-F
-      if (do_mcmc==T) {
-        list_unqiue_formulas_all_algorithms <-df_all_algorithms_with_mse_on_test$formula_with_lowest_mse_on_test
-        
-        #list_unqiue_formulas_all_algorithms <- list_formulas_all_algorithms[[1]]
-        fb<-list()
-        idx<-1
-        for(idx in 1:length(list_unqiue_formulas_all_algorithms)){
-          fmla[[idx]]  <- paste("log_e.coli ~ ",list_unqiue_formulas_all_algorithms[idx])
-          fb[[idx]] <- lm(fmla[[idx]], data = data_train) #because of cross validation for mcmc
-        }
-        
-        ################ Validation ########################
-        
-        names(fb) <- sprintf(paste0(river,"model_%02d"), seq_along(1:length(fb)))
-        
-        # calculate statistical tests for residuals: Normality and s2 = const
-        
-        # shapiro-wilk test and breusch-pagan test
-        
-        get_stat_tests <- function(model) {
-          c(N = shapiro.test(model$residuals)$p.value, lmtest::bptest(model)$p.value,
-            R2 = summary(model)[["adj.r.squared"]], n_obs = length(model$residuals))
-          
-        }
-        
-        
-        # testing for classical statistical model assumtions, normality of residuals and
-        
-        # heteroskelasdicity   #t() transpose
-        river_stat_tests <- sapply(fb, get_stat_tests)%>%
-          t() %>%
-          dplyr::as_tibble(rownames = "model")  %>%
-          dplyr::bind_rows(.id = "river") %>%
-          dplyr::mutate(stat_correct = N > .05 & BP > .05)
-        
-        
-        
-        # creating list of independent training rows
-        #-test/train split
-        
-        #weirde zeile, setze alle stat tests auf 0
-        river_stat_tests$in95 <- river_stat_tests$below95 <-river_stat_tests$below90 <- river_stat_tests$in50 <- river_stat_tests$MSE <- 0
-        
-        if(class(fmla[[length(fmla)]]) !="formula"){
-          print("new element is no formula!!")
-        }
-        
-        test_beta <- function(true, false, percentile){
-          if( pbeta(q = percentile, shape1 = true + 1, shape2 = false + 1) > 0.05){
-            TRUE}
-          else{FALSE}
-          
-        }
-        
-        
-        names(fmla) <- sprintf(paste0(river,"model_%02d"), seq_along(1:length(fb)))
-        
-        counter<-0
-        
-        erro_df <- data.frame()
-        
-        #cross validation   needs fb, and fmla
-        
-        { 
-          for(i in names(fb)){
-            #i<- names(fb)[1]
-            counter<- counter+1
-            #i="havelmodel_01"
-            test_error_df_model <- data.frame()
-            assign(paste(i,"_test_error_df_model",sep = ""),test_error_df_model)
-            
-            #for(j in 1:5){
-            counter <- counter+1
-            # j=1
-            
-            
-            #training <- as.data.frame(fb[[i]]$model)[c(train_rows[[j]]),]
-            #training <- as.data.frame(fb[[6]]$model)[c(train_rows[[1]]),]
-            #test <- as.data.frame(fb[[i]]$model)[-c(train_rows[[j]]),]
-            #test <- as.data.frame(fb[[6]]$model)[-c(train_rows[[1]]),]
-            #formel<-formula(formula_heiko_1)
-            
-            
-            #fmla[6]<- list(formel)
-            
-            
-            
-            fit <- rstanarm::stan_glm(fmla[[i]], data = data_train ) #fitting
-            #fit <- rstanarm::stan_glm(fmla[[1]], data = training) #fitting
-            
-            
-            df <- apply(rstanarm::posterior_predict(fit, newdata = data_test), 2, quantile, #predicting
-                        
-                        probs = c(0.025, 0.25, 0.5 , 0.75, 0.9, 0.95, 0.975)) %>% t() %>% as.data.frame() %>%
-              
-              dplyr::mutate(log_e.coli = data_test$log_e.coli, #evaluating ther model has to be classified correctly with every single test train split
-                            #--> here 5 different splits, if all validations correct than everywhere ==5
-                            
-                            below95 = log_e.coli < `95%`,
-                            
-                            below90 = log_e.coli < `90%`,
-                            
-                            within95 = log_e.coli < `97.5%`& log_e.coli > `2.5%`,
-                            
-                            within50 = log_e.coli < `75%`& log_e.coli > `25%`,
-                            
-              ) 
-            #error on testset
-            test_error_df_temp<- df%>%select(log_e.coli,`50%`)%>% mutate(squared_error = ((log_e.coli - `50%`)^2))
-            test_error_df_model<- test_error_df_model %>% rbind(test_error_df_temp)
-            
-            assign(paste(i,"_test_error_df_model", sep = ""),test_error_df_model)
-            #validation step if all percentile categories are set to 1
-            
-            river_stat_tests$in95[river_stat_tests$model == i] <-
-              
-              river_stat_tests$in95[river_stat_tests$model == i] +
-              
-              test_beta(true = sum(df$within95), false = sum(!df$within95), percentile = .95 ) #is 1 if true
-            
-            river_stat_tests$below95[river_stat_tests$model == i] <-
-              
-              river_stat_tests$below95[river_stat_tests$model == i] +
-              
-              test_beta(true = sum(df$below95), false = sum(!df$below95), percentile = .95 )
-            
-            river_stat_tests$below90[river_stat_tests$model == i] <-
-              
-              river_stat_tests$below90[river_stat_tests$model == i] +
-              
-              test_beta(true = sum(df$below90), false = sum(!df$below90), percentile = .90 )
-            
-            river_stat_tests$in50[river_stat_tests$model == i] <-
-              
-              river_stat_tests$in50[river_stat_tests$model == i] +
-              
-              
-              #beta test
-              test_beta(true = sum(df$within50), false = sum(!df$within50), .5)
-            #add MSE to stat_tests
-            river_stat_tests$MSE[river_stat_tests$model == i] <- mean(test_error_df_model$squared_error)
-            
-            
-            #add selected features and coeeficients to statistical test
-            river_stat_tests$selected_features[river_stat_tests$model == i] <- list((fmla[[i]]))
-            #river_stat_tests$selected_features[river_stat_tests$model == i] <- list(all.vars(fmla[[i]]))
-            river_stat_tests$coef_selected[river_stat_tests$model == i]<- list(coef(fb[[i]]))
-            
-            list_river_stat_tests<- append(list_river_stat_tests, list(river_stat_tests))
-            
-            #} 
-            
-          } 
-        }
-        
-        
-        
-        
-        
-        
-        
-      }
+     
       
       
-      
-    }
+    
+#end of river_path loop
     
     
     
@@ -1111,10 +967,19 @@ for (river_path_river in list_river_pathes) {
     lasso_features_occurence<-calc_col_means(get_occurences_glmnet_feature_selection(lasso_features_occurence, list_unique_lasso_formulas))
     elnet_features_occurence<-calc_col_means(get_occurences_glmnet_feature_selection(elnet_features_occurence, list_unique_elnet_formulas))
     
+    
+    river_list_rf_feature_occurence<- append(river_list_rf_feature_occurence,list(rf_features_occurence))
+    river_list_step_feature_occurence<- append(river_list_step_feature_occurence,list(step_features_occurence))
+    river_list_lasso_feature_occurence<- append(river_list_lasso_feature_occurence,list(lasso_features_occurence))
+    river_list_elnet_feature_occurence<- append(river_list_elnet_feature_occurence,list(elnet_features_occurence))
+    
+    
+    
+    
     unique_found_formulas<-all_unique_selected_formulas
     
     #end of frequentistic mse
-    
+
     #mcmc
     do_mcmc<-F
     if (do_mcmc==T) {
@@ -1327,47 +1192,147 @@ for (river_path_river in list_river_pathes) {
     for (formula_indx in 1:nrow(analysis_df)) {
       #formula_indx<-1
       mse_list<-list()
-      for(indx_fold in 1:length(list_df_all_algorithms_with_mse_on_test)){
+      for(indx_fold in 1:length(river_list_df_all_algorithms_with_mse_on_test)){
         
         
-        try(index_row_match<-match(analysis_df$unique_found_formulas[formula_indx],list_df_all_algorithms_with_mse_on_test[[indx_fold]]$formula_with_lowest_mse_on_test)) #gives back the indexrow where to find mse in list_df_all_alg..
-        try(mse_list<-append(mse_list,list_df_all_algorithms_with_mse_on_test[[indx_fold]][index_row_match,2] ))#2 is for mse col
+        try(index_row_match<-match(analysis_df$unique_found_formulas[formula_indx],river_list_df_all_algorithms_with_mse_on_test[[indx_fold]]$formula_with_lowest_mse_on_test)) #gives back the indexrow where to find mse in list_df_all_alg..
+        try(mse_list<-append(mse_list,river_list_df_all_algorithms_with_mse_on_test[[indx_fold]][index_row_match,2] ))#2 is for mse col
         
       }
       mse<-mean(unlist(mse_list), na.rm=T)
       analysis_df$found_n_times[formula_indx]<- sum(!is.na(mse_list))
       analysis_df$mse[formula_indx]<-mse
     }
+    
     analysis_df<-analysis_df%>%arrange(desc(found_n_times),mse)
     
+    river_list_river_stat_tests<- append(river_list_river_stat_tests, list(river_stat_tests))
+    river_list_sorted_modellist <- append(river_list_sorted_modellist, list(sorted_modellist))
+    river_list_analysis_df <- append(river_list_analysis_df, list(analysis_df))
+    river_list_unique_found_formulas<-append(river_list_unique_found_formulas,list(unique_found_formulas))
     
-    list_sorted_modellist <- append(list_sorted_modellist, list(sorted_modellist))
-    list_analysis_df <- append(list_analysis_df, list(analysis_df))
-    list_unique_found_formulas<-append(list_unique_found_formulas,list(unique_found_formulas))
-    
-    list_list_unique_step_formulas<-append(list_list_unique_step_formulas,list(list_unique_step_formulas))
-    list_list_unique_lasso_formulas<-append(list_list_unique_lasso_formulas,list(list_unique_lasso_formulas))
-    list_list_unique_rf_formulas<-append(list_list_unique_rf_formulas,list(list_unique_rf_formulas))
-    list_list_unique_elnet_formulas<-append(list_list_unique_elnet_formulas,list(list_unique_elnet_formulas))
-    
-    list_rf_feature_occurence<- append(list_rf_feature_occurence,list(rf_features_occurence))
-    list_step_feature_occurence<- append(list_step_feature_occurence,list(step_features_occurence))
-    list_lasso_feature_occurence<- append(list_lasso_feature_occurence,list(lasso_features_occurence))
-    list_elnet_feature_occurence<- append(list_elnet_feature_occurence,list(elnet_features_occurence))
+   
     
   }
   
 
+saved_river_list_river_stat_tests<- river_list_river_stat_tests
+saved_river_list_sorted_modellist <- river_list_sorted_modellist
+saved_river_list_analysis_df <- river_list_analysis_df 
+saved_river_list_unique_found_formulas<-river_list_unique_found_formulas
+
+saved_river_list_elnet_feature_occurence<-river_list_elnet_feature_occurence
+saved_river_list_rf_feature_occurence<-river_list_rf_feature_occurence
+saved_river_list_step_feature_occurence<-river_list_step_feature_occurence
+saved_river_list_lasso_feature_occurence<-river_list_lasso_feature_occurence
+
+saved_river_list_unique_found_formulas<-river_list_unique_found_formulas
+
+saved_river_list_rf_feature_occurence<-  river_list_rf_feature_occurence
+saved_river_list_step_feature_occurence<- river_list_step_feature_occurence
+saved_river_list_lasso_feature_occurence<- river_list_lasso_feature_occurence
+saved_river_list_elnet_feature_occurence<- river_list_elnet_feature_occurence
+saved_river_list_df_all_algorithms_with_mse_on_test<-river_list_df_all_algorithms_with_mse_on_test
+
+#saved_have_data
+saveRDS(saved_river_list_river_stat_tests[[1]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/havel_results_1/havel_saved_river_list_river_stat_tests.rds")
+saveRDS(saved_river_list_sorted_modellist[[1]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/havel_results_1/havel_saved_river_list_sorted_modellist.rds")
+saveRDS(saved_river_list_analysis_df[[1]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/havel_results_1/havel_saved_river_list_analysis_df.rds")
+
+saveRDS(saved_river_list_elnet_feature_occurence[[1]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/havel_results_1/havel_saved_river_list_elnet_feature_occurence.rds")
+saveRDS(saved_river_list_rf_feature_occurence[[1]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/havel_results_1/havel_saved_river_list_rf_feature_occurence.rds")
+saveRDS(saved_river_list_step_feature_occurence[[1]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/havel_results_1/havel_saved_river_list_step_feature_occurence.rds")
+saveRDS(saved_river_list_lasso_feature_occurence[[1]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/havel_results_1/havel_saved_river_list_lasso_feature_occurence.rds")
+saveRDS(saved_river_list_unique_found_formulas[[1]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/havel_results_1/havel_saved_river_list_unique_found_formulas.rds")
+saveRDS(saved_river_list_df_all_algorithms_with_mse_on_test[[1]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/havel_results_1/havel_saved_river_list_df_all_algorithms_with_mse_on_test.rds")
+
+#saved_isar_data
+saveRDS(saved_river_list_river_stat_tests[[2]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/isar_results_1/isar_saved_river_list_river_stat_tests.rds")
+saveRDS(saved_river_list_sorted_modellist[[2]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/isar_results_1/isar_saved_river_list_sorted_modellist.rds")
+saveRDS(saved_river_list_analysis_df[[2]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/isar_results_1/isar_saved_river_list_analysis_df.rds")
+
+saveRDS(saved_river_list_elnet_feature_occurence[[2]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/isar_results_1/isar_saved_river_list_elnet_feature_occurence.rds")
+saveRDS(saved_river_list_rf_feature_occurence[[2]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/isar_results_1/isar_saved_river_list_rf_feature_occurence.rds")
+saveRDS(saved_river_list_step_feature_occurence[[2]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/isar_results_1/isar_saved_river_list_step_feature_occurence.rds")
+saveRDS(saved_river_list_lasso_feature_occurence[[2]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/isar_results_1/isar_saved_river_list_lasso_feature_occurence.rds")
+saveRDS(saved_river_list_unique_found_formulas[[2]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/isar_results_1/isar_saved_river_list_unique_found_formulas.rds")
+saveRDS(saved_river_list_df_all_algorithms_with_mse_on_test[[2]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/isar_results_1/isar_saved_river_list_df_all_algorithms_with_mse_on_test.rds")
+
+#saved_ilz_data
+saveRDS(saved_river_list_river_stat_tests[[3]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/ilz_results_1/ilz_saved_river_list_river_stat_tests.rds")
+saveRDS(saved_river_list_sorted_modellist[[3]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/ilz_results_1/ilz_saved_river_list_sorted_modellist.rds")
+saveRDS(saved_river_list_analysis_df[[3]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/ilz_results_1/ilz_saved_river_list_analysis_df.rds")
+
+saveRDS(saved_river_list_elnet_feature_occurence[[3]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/ilz_results_1/ilz_saved_river_list_elnet_feature_occurence.rds")
+saveRDS(saved_river_list_rf_feature_occurence[[3]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/ilz_results_1/ilz_saved_river_list_rf_feature_occurence.rds")
+saveRDS(saved_river_list_step_feature_occurence[[3]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/ilz_results_1/ilz_saved_river_list_step_feature_occurence.rds")
+saveRDS(saved_river_list_lasso_feature_occurence[[3]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/ilz_results_1/ilz_saved_river_list_lasso_feature_occurence.rds")
+saveRDS(saved_river_list_unique_found_formulas[[3]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/ilz_results_1/ilz_saved_river_list_unique_found_formulas.rds")
+saveRDS(saved_river_list_df_all_algorithms_with_mse_on_test[[3]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/ilz_results_1/ilz_saved_river_list_df_all_algorithms_with_mse_on_test.rds")
+
+#saved_mosel_data
+saveRDS(saved_river_list_river_stat_tests[[4]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/mosel_results_1/mosel_saved_river_list_river_stat_tests.rds")
+saveRDS(saved_river_list_sorted_modellist[[4]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/mosel_results_1/mosel_saved_river_list_sorted_modellist.rds")
+saveRDS(saved_river_list_analysis_df[[4]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/mosel_results_1/mosel_saved_river_list_analysis_df.rds")
+
+saveRDS(saved_river_list_elnet_feature_occurence[[4]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/mosel_results_1/mosel_saved_river_list_elnet_feature_occurence.rds")
+saveRDS(saved_river_list_rf_feature_occurence[[4]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/mosel_results_1/mosel_saved_river_list_rf_feature_occurence.rds")
+saveRDS(saved_river_list_step_feature_occurence[[4]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/mosel_results_1/mosel_saved_river_list_step_feature_occurence.rds")
+saveRDS(saved_river_list_lasso_feature_occurence[[4]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/mosel_results_1/mosel_saved_river_list_lasso_feature_occurence.rds")
+saveRDS(saved_river_list_unique_found_formulas[[4]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/mosel_results_1/mosel_saved_river_list_unique_found_formulas.rds")
+saveRDS(saved_river_list_df_all_algorithms_with_mse_on_test[[4]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/mosel_results_1/mosel_saved_river_list_df_all_algorithms_with_mse_on_test.rds")
+
+#saved_rhein_data
+saveRDS(saved_river_list_river_stat_tests[[5]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/rhein_results_1/rhein_saved_river_list_river_stat_tests.rds")
+saveRDS(saved_river_list_sorted_modellist[[5]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/rhein_results_1/rhein_saved_river_list_sorted_modellist.rds")
+saveRDS(saved_river_list_analysis_df[[5]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/rhein_results_1/rhein_saved_river_list_analysis_df.rds")
+
+saveRDS(saved_river_list_elnet_feature_occurence[[5]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/rhein_results_1/rhein_saved_river_list_elnet_feature_occurence.rds")
+saveRDS(saved_river_list_rf_feature_occurence[[5]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/rhein_results_1/rhein_saved_river_list_rf_feature_occurence.rds")
+saveRDS(saved_river_list_step_feature_occurence[[5]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/rhein_results_1/rhein_saved_river_list_step_feature_occurence.rds")
+saveRDS(saved_river_list_lasso_feature_occurence[[5]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/rhein_results_1/rhein_saved_river_list_lasso_feature_occurence.rds")
+saveRDS(saved_river_list_unique_found_formulas[[5]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/rhein_results_1/rhein_saved_river_list_unique_found_formulas.rds")
+saveRDS(saved_river_list_df_all_algorithms_with_mse_on_test[[5]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/rhein_results_1/rhein_saved_river_list_df_all_algorithms_with_mse_on_test.rds")
+
+#saved_ruhr_data
+saveRDS(saved_river_list_river_stat_tests[[6]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/ruhr_results_1/ruhr_saved_river_list_river_stat_tests.rds")
+saveRDS(saved_river_list_sorted_modellist[[6]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/ruhr_results_1/ruhr_saved_river_list_sorted_modellist.rds")
+saveRDS(saved_river_list_analysis_df[[6]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/ruhr_results_1/ruhr_saved_river_list_analysis_df.rds")
+
+saveRDS(saved_river_list_elnet_feature_occurence[[6]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/ruhr_results_1/ruhr_saved_river_list_elnet_feature_occurence.rds")
+saveRDS(saved_river_list_rf_feature_occurence[[6]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/ruhr_results_1/ruhr_saved_river_list_rf_feature_occurence.rds")
+saveRDS(saved_river_list_step_feature_occurence[[6]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/ruhr_results_1/ruhr_saved_river_list_step_feature_occurence.rds")
+saveRDS(saved_river_list_lasso_feature_occurence[[6]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/ruhr_results_1/ruhr_saved_river_list_lasso_feature_occurence.rds")
+saveRDS(saved_river_list_unique_found_formulas[[6]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/ruhr_results_1/ruhr_saved_river_list_unique_found_formulas.rds")
+saveRDS(saved_river_list_df_all_algorithms_with_mse_on_test[[6]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/ruhr_results_1/ruhr_saved_river_list_df_all_algorithms_with_mse_on_test.rds")
 
 
 
 
-havel_sorted_modellist <- as_tibble(list_sorted_modellist[1:18])
-isar_sorted_modellist  <- as_tibble(list_sorted_modellist[19:36])
-ila_sorted_modellist <- as_tibble(list_sorted_modellist[37:54])
-mosel_sorted_modellist <- as_tibble(list_sorted_modellist[55:72] )
-rhein_sorted_modellist <- as_tibble(list_sorted_modellist[73:90])
-rhur_sorted_modellist <- as_tibble(list_sorted_modellist[91:108])
+
+
+havel_saved_river_list_sorted_modellist <- write_csv( river_list_sorted_modellist[[1]])
+havel_saved_river_list_analysis_df <- river_list_analysis_df [[1]]
+havel_saved_river_list_unique_found_formulas<-river_list_unique_found_formulas[[1]]
+
+isar_results <-
+ilz_results <-
+mosel_results <-
+rhein_results <-
+ruhr_results <-
+
+
+
+
+havel_sorted_modellist <- as_tibble(river_list_analysis_df[1:18])
+isar_sorted_modellist  <- as_tibble(river_list_analysis_df[19:36])
+ila_sorted_modellist <- as_tibble(river_list_analysis_df[37:54])
+mosel_sorted_modellist <- as_tibble(river_list_analysis_df[55:72] )
+rhein_sorted_modellist <- as_tibble(river_list_analysis_df[73:90])
+rhur_sorted_modellist <- as_tibble(river_list_analysis_df[91:108])
+
+
+
 
 #mcmc analysis
 
