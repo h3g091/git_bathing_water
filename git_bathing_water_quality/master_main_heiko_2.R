@@ -60,12 +60,13 @@ river_list_step_feature_occurence<- list()
 river_list_lasso_feature_occurence<- list()
 river_list_elnet_feature_occurence<- list()
 
-
 river_list_df_all_algorithms_with_mse_on_test<-list()
+river_list_stanarm_fits<-list()
+
 
 for (river_path_river in list_river_pathes) {
   river_paths<-river_path_river
-
+  
   #river_paths<- river_paths1
   {
     calc_t <- function (datalist=river_data$havel, onlysummer) {
@@ -309,6 +310,9 @@ for (river_path_river in list_river_pathes) {
       df_with_all_variable_names <-train
       iteration_name<-paste("iterations", iterations,"fold",indx_fold,sep = "_")
       
+      do_selection<-T
+      if (do_selection ==T) {
+        
       
       #feature_selection_step
       {
@@ -629,7 +633,7 @@ for (river_path_river in list_river_pathes) {
       #s_lasso_fits_5_coef<-fit_lasso_base_cross_stand$nzero==5
       #lambdas_lasso_fits_5_coef<-fit_lasso_base_cross_stand$lambda[s_lasso_fits_5_coef]
       
-      #search formulas for 2 coef
+      #search formulas for s coef
       lasso_df_coeficcient_lambdas <- data.frame()
       for (s in 1:100) {
         #s<-20
@@ -672,13 +676,6 @@ for (river_path_river in list_river_pathes) {
       #elnet
       fit_elnet_base <- glmnet(train_sparse,data_train$log_e.coli,type.measure="mse", alpha=0.5, family="gaussian",relax = F)#--> alpha =1:  lasso regressio)
       
-      
-      
-      
-      
-      #s_elnet_fits_5_coef<-fit_elnet_base_cross_stand$nzero==5
-      #lambdas_elnet_fits_5_coef<-fit_elnet_base_cross_stand$lambda[s_elnet_fits_5_coef]
-      
       #search formulas for 2 coef
       elnet_df_coeficcient_lambdas <- data.frame()
       for (s in 1:100) {
@@ -693,10 +690,6 @@ for (river_path_river in list_river_pathes) {
       names(elnet_df_coeficcient_lambdas)[1]<- "lambda_idx"
       names(elnet_df_coeficcient_lambdas)[2]<- "formula"
       names(elnet_df_coeficcient_lambdas)[3]<- "n_features"
-      
-      
-      
-      
       
       #unique_elnet_formulas_coef_1<-
       unique_elnet_formulas_coef_1<-unique(elnet_df_coeficcient_lambdas$formula[elnet_df_coeficcient_lambdas$n_features==1])
@@ -718,12 +711,62 @@ for (river_path_river in list_river_pathes) {
       list_unique_elnet_formulas <- unique(unlist(append(list_unique_elnet_formulas, list(unique_elnet_formulas))))
       #end elnet
       
-      
+      }
       #end of selection --> now get fold_mse
       
       
       
     }
+    do_cv_glmnet<- F
+    if (do_cv_glmnet ==T)
+    {
+    full_cv <- lm(log_e.coli ~ .^2, data = data)
+    train_sparse_cv <- sparse.model.matrix(full_cv, data)
+    #fitting lasso
+    fit_lasso_base_cross_stand <- cv.glmnet(train_sparse_cv, data$log_e.coli,type.measure="mse", alpha=1, family="gaussian",  nfolds = 5,standardize = T,relax = F, foldid = foldid)#--> alpha =1:  lasso regressio
+    fit_lasso_base_cross_stand_relax <- cv.glmnet(train_sparse_cv, data$log_e.coli,type.measure="mse", alpha=1, family="gaussian",  nfolds = 5,standardize = T,relax = T, foldid = foldid)#--> alpha =1:  lasso regressio
+    #fitting elnet
+    fit_elnet_base_cross_stand <- cv.glmnet(train_sparse_cv, data$log_e.coli,type.measure="mse", alpha=0.5, family="gaussian",  nfolds = 5,standardize = T,relax = F, foldid = foldid)#--> alpha =1:  lasso regressio
+    fit_elnet_base_cross_stand_relax <- cv.glmnet(train_sparse_cv, data$log_e.coli,type.measure="mse", alpha=0.5, family="gaussian",  nfolds = 5,standardize = T,relax = T, foldid = foldid)#--> alpha =1:  lasso regressio
+    
+    get_cv_glmnet_found_formulas_lambda_1se_and_lambda_min <- function(cv_glmnet_fit){
+      #cv_glmnet_fit<-fit_lasso_base_cross_stand
+      cv_glmnet_fit_coeffs_lambda_min <- coef(cv_glmnet_fit, s = "lambda.min")
+      coef_and_var_names_cv_glmnet_fit_lambda_min<-data.frame(name = cv_glmnet_fit_coeffs_lambda_min@Dimnames[[1]][cv_glmnet_fit_coeffs_lambda_min@i + 1], coefficient = cv_glmnet_fit_coeffs_lambda_min@x)
+      
+      formel1<-paste_together_step_coefficients(coef_and_var_names_cv_glmnet_fit_lambda_min$name[-1])
+      
+      
+      cv_glmnet_fit_coeffs_lambda_1se <- coef(cv_glmnet_fit, s = "lambda.1se")
+      coef_and_var_names_cv_glmnet_fit_lambda_1se<-data.frame(name = cv_glmnet_fit_coeffs_lambda_1se@Dimnames[[1]][cv_glmnet_fit_coeffs_lambda_1se@i + 1], coefficient = cv_glmnet_fit_coeffs_lambda_1se@x)
+      
+      formel2<-paste_together_step_coefficients(coef_and_var_names_cv_glmnet_fit_lambda_1se$name[-1])
+      
+      formel_list<- unlist(list(formel1,formel2))
+      return(formel_list)
+      
+    }
+    
+    #add elnet and lasso coeffs from  cv_glmnet lambda min and lmabda se
+   
+    coef_fit_lasso_base_cross_stand<-get_cv_glmnet_found_formulas_lambda_1se_and_lambda_min(fit_lasso_base_cross_stand)
+    coef_fit_lasso_base_cross_stand_relax<-get_cv_glmnet_found_formulas_lambda_1se_and_lambda_min(fit_lasso_base_cross_stand_relax)
+    
+    list_unique_lasso_formulas<-append(list_unique_lasso_formulas,coef_fit_lasso_base_cross_stand)
+    list_unique_lasso_formulas<-append(list_unique_lasso_formulas,coef_fit_lasso_base_cross_stand_relax)
+    
+    
+    
+    coef_fit_elnet_base_cross_stand<-get_cv_glmnet_found_formulas_lambda_1se_and_lambda_min(fit_elnet_base_cross_stand)
+    coef_fit_elnet_base_cross_stand_relax<-get_cv_glmnet_found_formulas_lambda_1se_and_lambda_min(fit_elnet_base_cross_stand_relax)
+    
+    list_unique_elnet_formulas<-append(list_unique_elnet_formulas,coef_fit_elnet_base_cross_stand)
+    list_unique_elnet_formulas<-append(list_unique_elnet_formulas,coef_fit_elnet_base_cross_stand_relax)
+    
+    }
+    
+    
+    
     #save all formulas from acual river
     river_list_unique_step_formulas<-append(river_list_unique_step_formulas,list(list_unique_step_formulas))
     river_list_unique_lasso_formulas<-append(river_list_unique_lasso_formulas,list(list_unique_lasso_formulas))
@@ -830,7 +873,7 @@ for (river_path_river in list_river_pathes) {
       df_all_algorithms_with_mse_on_test$mse <- rowMeans(cbind(mse_adj_r_2_fold_1$mse,mse_adj_r_2_fold_2$mse,mse_adj_r_2_fold_3$mse,mse_adj_r_2_fold_4$mse,mse_adj_r_2_fold_5$mse))
       df_all_algorithms_with_mse_on_test$adj.r.squared <- rowMeans(cbind(mse_adj_r_2_fold_1$adj.r.squared,mse_adj_r_2_fold_2$adj.r.squared,mse_adj_r_2_fold_3$adj.r.squared,mse_adj_r_2_fold_4$adj.r.squared,mse_adj_r_2_fold_5$adj.r.squared))
       
-      
+      #not used anymore
       formula_mse_on_test_coef_1<-calc_mse_for_unique_formulas_with_test_set(list_unqiue_formulas_all_algorithms_coef_1)
       formula_mse_on_test_coef_2<-calc_mse_for_unique_formulas_with_test_set(list_unqiue_formulas_all_algorithms_coef_2)
       formula_mse_on_test_coef_3<-calc_mse_for_unique_formulas_with_test_set(list_unqiue_formulas_all_algorithms_coef_3)
@@ -935,7 +978,7 @@ for (river_path_river in list_river_pathes) {
     list_unique_lasso_formulas<- unique(unlist(list_unique_lasso_formulas))
     list_unique_elnet_formulas<- unique(unlist(list_unique_elnet_formulas))
     list_unique_rf_formulas<- unique(unlist(list_unique_rf_formulas))
-    
+    {
     calc_col_means <- function(df_x_coef_save){
       #df_x_coef_save<-rf_features_occurence
       new_df <- as.data.frame(colMeans(df_x_coef_save[-c((ncol(df_x_coef_save)-1):ncol(df_x_coef_save))]))
@@ -961,7 +1004,7 @@ for (river_path_river in list_river_pathes) {
       #new_df<- as.data.frame(new_df)
       return(df_x_coef_save)
     }
-    
+    }
     step_features_occurence<-calc_col_means(get_occurences_glmnet_feature_selection(step_features_occurence, list_unique_step_formulas))
     rf_features_occurence<-calc_col_means(get_occurences_glmnet_feature_selection(rf_features_occurence, list_unique_rf_formulas))
     lasso_features_occurence<-calc_col_means(get_occurences_glmnet_feature_selection(lasso_features_occurence, list_unique_lasso_formulas))
@@ -981,7 +1024,7 @@ for (river_path_river in list_river_pathes) {
     #end of frequentistic mse
 
     #mcmc
-    do_mcmc<-F
+    do_mcmc<-T
     if (do_mcmc==T) {
       list_unqiue_formulas_all_algorithms <-unique_found_formulas
       
@@ -1044,7 +1087,7 @@ for (river_path_river in list_river_pathes) {
       erro_df <- data.frame()
       
       #cross validation   needs fb, and fmla
-      
+      list_stanarm_fits<- list()
       { 
         for(i in names(fb)){
           #i<- names(fb)[1]
@@ -1057,27 +1100,18 @@ for (river_path_river in list_river_pathes) {
             counter <- counter+1
             # j=1
             
-            data_train <- data[train_rows[[indx_fold]],]
+            data_train <- data[train_rows[[j]],]
             data_train <-data.frame(scale(data_train))
             #test_data fold
-            data_test <- data[-train_rows[[indx_fold]],]
+            data_test <- data[-train_rows[[j]],]
             data_test <-data.frame(scale(data_test))
             
             train_bacteria <- data_train$log_e.coli
             test_bacteria <- data_test$log_e.coli
-            #training <- as.data.frame(fb[[i]]$model)[c(train_rows[[j]]),]
-            #training <- as.data.frame(fb[[6]]$model)[c(train_rows[[1]]),]
-            #test <- as.data.frame(fb[[i]]$model)[-c(train_rows[[j]]),]
-            #test <- as.data.frame(fb[[6]]$model)[-c(train_rows[[1]]),]
-            #formel<-formula(formula_heiko_1)
-            
-            
-            #fmla[6]<- list(formel)
-            
-            
-            
+
             fit <- rstanarm::stan_glm(fmla[[i]], data = data_train ) #fitting
-            #fit <- rstanarm::stan_glm(fmla[[1]], data = training) #fitting
+            
+            list_stanarm_fits <- append(list_stanarm_fits, list(fit))
             
             
             df <- apply(rstanarm::posterior_predict(fit, newdata = data_test), 2, quantile, #predicting
@@ -1210,10 +1244,37 @@ for (river_path_river in list_river_pathes) {
     river_list_sorted_modellist <- append(river_list_sorted_modellist, list(sorted_modellist))
     river_list_analysis_df <- append(river_list_analysis_df, list(analysis_df))
     river_list_unique_found_formulas<-append(river_list_unique_found_formulas,list(unique_found_formulas))
-    
+    river_list_stanarm_fits  <- append(river_list_stanarm_fits,list_stanarm_fits)
    
     
   }
+  
+
+river_list_stanarm_fits_splitted<- list()
+a<-1
+
+for (multiplier in 1:585) {
+  b<-27
+  b<- b*multiplier
+  
+  river_list_stanarm_fits_splitted<- append(river_list_stanarm_fits_splitted,list(river_list_stanarm_fits[a:b]))
+  #print(a)
+  #print(b)
+  a<- b+1
+  
+}
+fit
+
+c<-unlist(river_list_stanarm_fits_splitted[1])
+
+rstanarm::loo(c)
+
+
+
+
+new_run<-F
+
+if (new_run==T) {
   
 
 saved_river_list_river_stat_tests<- river_list_river_stat_tests
@@ -1233,6 +1294,43 @@ saved_river_list_step_feature_occurence<- river_list_step_feature_occurence
 saved_river_list_lasso_feature_occurence<- river_list_lasso_feature_occurence
 saved_river_list_elnet_feature_occurence<- river_list_elnet_feature_occurence
 saved_river_list_df_all_algorithms_with_mse_on_test<-river_list_df_all_algorithms_with_mse_on_test
+
+#combine rank and bayes to see if there is a difference in mse-order
+combine_rank_bayes_and_frequentistic<-function(list_df_all_algorithms_function,sorted_modellist_function){
+  
+  #list_df_all_algorithms_function<-saved_river_list_df_all_algorithms_with_mse_on_test[[2]]
+  #sorted_modellist_function  <-saved_river_list_sorted_modellist[[2]]
+  q<-list_df_all_algorithms_function
+  w<- sorted_modellist_function
+  w$rank<- 1:nrow(w)
+  q$rank<- 0
+  
+  w<-as.data.frame(w)
+  for (i in 1:nrow(w)) {
+    #i<-1
+    
+    formula_for_matching<-w$selected_features[i]
+    formula_features_for_matching<-str_split(formula_for_matching, "~  ")[[1]][2]
+    idx_sorted_modellist<-match(formula_for_matching, w$selected_features)
+    idx_df_all_algorithms_with_mse_on_test<-match(formula_features_for_matching, q$formula_with_lowest_mse_on_test)
+    q$rank[idx_df_all_algorithms_with_mse_on_test]<- w$rank[idx_sorted_modellist]
+    
+    
+  }  
+  return(q) 
+}
+
+saved_river_list_df_all_algorithms_with_mse_on_test[[1]]<-combine_rank_bayes_and_frequentistic(list_df_all_algorithms_function = saved_river_list_df_all_algorithms_with_mse_on_test[[1]],sorted_modellist_function = saved_river_list_sorted_modellist[[1]])
+saved_river_list_df_all_algorithms_with_mse_on_test[[2]]<-combine_rank_bayes_and_frequentistic(list_df_all_algorithms_function = saved_river_list_df_all_algorithms_with_mse_on_test[[2]],sorted_modellist_function = saved_river_list_sorted_modellist[[2]])
+saved_river_list_df_all_algorithms_with_mse_on_test[[3]]<-combine_rank_bayes_and_frequentistic(list_df_all_algorithms_function = saved_river_list_df_all_algorithms_with_mse_on_test[[3]],sorted_modellist_function = saved_river_list_sorted_modellist[[3]])
+saved_river_list_df_all_algorithms_with_mse_on_test[[4]]<-combine_rank_bayes_and_frequentistic(list_df_all_algorithms_function = saved_river_list_df_all_algorithms_with_mse_on_test[[4]],sorted_modellist_function = saved_river_list_sorted_modellist[[4]])
+saved_river_list_df_all_algorithms_with_mse_on_test[[5]]<-combine_rank_bayes_and_frequentistic(list_df_all_algorithms_function = saved_river_list_df_all_algorithms_with_mse_on_test[[5]],sorted_modellist_function = saved_river_list_sorted_modellist[[5]])
+saved_river_list_df_all_algorithms_with_mse_on_test[[6]]<-combine_rank_bayes_and_frequentistic(list_df_all_algorithms_function = saved_river_list_df_all_algorithms_with_mse_on_test[[6]],sorted_modellist_function = saved_river_list_sorted_modellist[[6]])
+
+
+
+
+
 
 #saved_have_data
 saveRDS(saved_river_list_river_stat_tests[[1]], file = "/Users/heiko.langer/Masterarbeit_lokal/Masterprojekt/git_bathing_water/git_bathing_water_quality/havel_results_1/havel_saved_river_list_river_stat_tests.rds")
@@ -1308,55 +1406,4 @@ saveRDS(saved_river_list_df_all_algorithms_with_mse_on_test[[6]], file = "/Users
 
 
 
-
-
-
-havel_saved_river_list_sorted_modellist <- write_csv( river_list_sorted_modellist[[1]])
-havel_saved_river_list_analysis_df <- river_list_analysis_df [[1]]
-havel_saved_river_list_unique_found_formulas<-river_list_unique_found_formulas[[1]]
-
-isar_results <-
-ilz_results <-
-mosel_results <-
-rhein_results <-
-ruhr_results <-
-
-
-
-
-havel_sorted_modellist <- as_tibble(river_list_analysis_df[1:18])
-isar_sorted_modellist  <- as_tibble(river_list_analysis_df[19:36])
-ila_sorted_modellist <- as_tibble(river_list_analysis_df[37:54])
-mosel_sorted_modellist <- as_tibble(river_list_analysis_df[55:72] )
-rhein_sorted_modellist <- as_tibble(river_list_analysis_df[73:90])
-rhur_sorted_modellist <- as_tibble(river_list_analysis_df[91:108])
-
-
-
-
-#mcmc analysis
-
-#select only models that are validated - sorted by desc R2 - but is this a good kpi??
-
-
-
-
-
-list_river_stat_tests[[1]]
-fold_1_mcmc<-list_river_stat_tests[[13]]$selected_features
-fold_2_mcmc<-list_river_stat_tests[[29]]$selected_features
-fold_3_mcmc<-list_river_stat_tests[[44]]$selected_features
-fold_4_mcmc<-list_river_stat_tests[[59]]$selected_features
-fold_5_mcmc<-list_river_stat_tests[[73]]$selected_features
-
-Reduce(intersect, list(fold_1_mcmc,fold_2_mcmc,fold_3_mcmc,fold_4_mcmc,fold_5_mcmc))
-
-inner_join(fold_1_mcmc,fold_2_mcmc)
-
-
-comparison <- compare(fold_1_mcmc$selected_features[[5]], fold_2_mcmc$selected_features, allowAll =    T)
-comparison
-fold_1_mcmc$selected_features[[3]]
-
-
-
+}
