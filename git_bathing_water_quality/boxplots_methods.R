@@ -617,7 +617,7 @@ split_up_iterations <- function(iteration_river_list_mse_mean_algo){
 #all_rivers_step_aic<-split_up_iterations(iteration_river_list_mse_mean_step_aic)
 #all_rivers_step_bic <-split_up_iterations(iteration_river_list_mse_mean_step_bic)
 
-par(mfrow = c(1,1))
+par(mfrow = c(2,3))
 do_full_plot_new <- T
 if(do_full_plot_new==T){
   all_rivers_lasso_lambda_1se<-as.data.frame(split_up_iterations(iteration_river_list_mse_mean_lasso_lambda_1se))
@@ -862,9 +862,9 @@ if(do_full_plot_new==T){
    
    boxplot(havel_mses_algo$havel_mses_algo ~ havel_mses_algo$algo_name,main= names_river[1] )
    
-   
-   
-   
+   save_all_formulas<-F
+   if(save_all_formulas ==T){
+ ###########save all found formulas and predict on all datapoints  
    
    
   do_plot_full<-F
@@ -1024,7 +1024,7 @@ if(do_full_plot_new==T){
   
     
    
-}
+
 havel_mses_best_model_oos <- data.frame()
 isar_mses_best_model_oos <- data.frame()
 ilz_mses_best_model_oos <- data.frame()
@@ -1077,6 +1077,7 @@ for (i in 1:6) {
   boxplot(df_together_oos$river_model_mses ~df_together$names,main= paste(names_river[i], "OOS"),ylim=c(min_value, max_value) )
 }
 
+}
 river_list_mse_mean_rf<-naming(river_list_mse_mean_rf)
 river_list_mse_mean_step_aic<-naming(river_list_mse_mean_step_aic)
 river_list_mse_mean_step_bic<-naming(river_list_mse_mean_step_bic)
