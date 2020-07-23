@@ -38,6 +38,12 @@ iteration_river_list_lasso_Model <- list()
 iteration_river_list_mse_mean_lasso_lambda_min<- list()
 iteration_river_list_mse_mean_lasso_lambda_1se<- list()
 
+iteration_river_list_data <- list()
+iteration_river_list_data_train <- list()
+iteration_river_list_data_test <- list()
+
+iteration_river_list_foldids <- list()
+
 start_time<-Sys.time()
 
 for(iteration in 1:15){
@@ -218,7 +224,9 @@ for(iteration in 1:15){
       
     }  
   }
+ 
   
+ 
   #new data_train data_test
   
   
@@ -262,6 +270,14 @@ for(iteration in 1:15){
     river_list_data_train_bacteria <- append(river_list_data_train_bacteria, list(list_data_train_bacteria))
     river_list_data_test_bacteria <- append(river_list_data_test_bacteria, list(list_data_test_bacteria))
   }
+  iteration_river_list_data<- append(iteration_river_list_data, list(river_list_data))
+  
+  iteration_river_list_foldids <- append(iteration_river_list_foldids, list(river_list_foldids))
+  
+  iteration_river_list_data_train <- append(iteration_river_list_data_train, list(river_list_data_train))
+  iteration_river_list_data_test <- append(iteration_river_list_data_test, list(river_list_data_test))
+  
+
   
   
   
@@ -527,6 +543,14 @@ end_time<-Sys.time()
 
 do_save <- F
 if(do_save==T){
+  
+  saved_iteration_river_list_data<- iteration_river_list_data
+  
+  saved_iteration_river_list_foldids <- iteration_river_list_foldids
+  
+  saved_iteration_river_list_data_train<- iteration_river_list_data_train
+  saved_iteration_river_list_data_test<- iteration_river_list_data_test 
+  
   saved_iteration_river_list_lasso_Model<-iteration_river_list_lasso_Model
   saved_iteration_river_list_mse_mean_lasso_lambda_min<-iteration_river_list_mse_mean_lasso_lambda_min
   saved_iteration_river_list_mse_mean_lasso_lambda_1se<-iteration_river_list_mse_mean_lasso_lambda_1se
