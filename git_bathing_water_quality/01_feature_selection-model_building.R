@@ -55,6 +55,7 @@ for(iteration in 1:15){
     list_train_rows <- list()
     list_test_rows <- list()
     for (river_path_river in list_river_pathes) {
+      
       river_paths<-river_path_river
       
       #river_paths<- list_river_pathes[[1]]
@@ -270,6 +271,7 @@ for(iteration in 1:15){
     river_list_data_train_bacteria <- append(river_list_data_train_bacteria, list(list_data_train_bacteria))
     river_list_data_test_bacteria <- append(river_list_data_test_bacteria, list(list_data_test_bacteria))
   }
+  
   iteration_river_list_data<- append(iteration_river_list_data, list(river_list_data))
   
   iteration_river_list_foldids <- append(iteration_river_list_foldids, list(river_list_foldids))
@@ -300,7 +302,7 @@ for(iteration in 1:15){
     #river_list_mse_lasso_evaluation<-list()
     
   }
-  
+  #lasso-selection
   if(do_lasso==T){
     for(indx_river in 1:length(river_list_data_train)){
       #entry <- list_data_train_river[[1]]
