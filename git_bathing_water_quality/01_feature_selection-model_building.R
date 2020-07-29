@@ -34,6 +34,9 @@ iteration_river_list_selection_bic <-list()
 iteration_river_list_mse_mean_step_aic<- list()
 iteration_river_list_mse_mean_step_bic<- list()
 
+iteration_river_list_selection_5_bic<-list()
+iteration_river_list_mse_mean_step_5_bic<- list()
+
 iteration_river_list_lasso_Model <- list()
 iteration_river_list_mse_mean_lasso_lambda_min<- list()
 iteration_river_list_mse_mean_lasso_lambda_1se<- list()
@@ -285,7 +288,7 @@ for(iteration in 1:15){
   
   
   
-  do_lasso<-T
+  do_lasso<-F
   #initializing lasso formulas
   if (do_lasso==T) {
     #river_list_mse_mean_lasso <- list() # mses on test-set outer loop for every river
@@ -360,7 +363,7 @@ for(iteration in 1:15){
   }
   
   
-  do_step_full <-T
+  do_step_full <-F
   if (do_step_full==T) {
   river_list_mse_mean_step_aic <- list()
   river_list_mse_mean_step_bic<-list()
@@ -377,8 +380,24 @@ for(iteration in 1:15){
   river_list_mse_step_aic_evaluation<-list()
   river_list_mse_step_bic_evaluation<-list()
   }
-  
-  do_rf<-T
+  do_step_5<-T
+  if (do_step_5==T) {
+    river_list_mse_mean_step_5_aic <- list()
+    river_list_mse_mean_step_5_bic<-list()
+    
+    per_river_list_mse_mean_step_5_aic<-list()
+    per_river_list_mse_mean_step_5_bic<-list()
+    
+    river_list_selection_5_aic<- list()
+    river_list_selection_5_bic<- list()
+    
+    river_list_mse_step_5_aic_evaluation_oos<-list()
+    river_list_mse_step_5_bic_evaluation_oos<-list()
+    #error on full dataset
+    river_list_mse_step_5_aic_evaluation<-list()
+    river_list_mse_step_5_bic_evaluation<-list()
+  }
+  do_rf<-F
   #initializing rf formulas
   if(do_rf==T){
   per_river_list_mse_mean_rf <- list()
@@ -463,7 +482,70 @@ for(iteration in 1:15){
     river_list_mse_mean_step_bic<- append(river_list_mse_mean_step_bic,mse_mean_step_bic)
   }
       
-    
+    if (do_step_5==T)
+    {
+      list_selection_5_aic<-  list()
+      list_mse_step_5_aic<-list()
+      list_selection_5_bic<-  list()
+      list_mse_step_5_bic<-list()
+      null1<- null
+      full1<- full
+      indx_test<- 1
+      
+      
+      for(entry in list_data_train_river){
+        #entry <- list_data_train_river[[1]]
+        data_train<- entry
+        data_test <- list_data_test_river[[indx_test]]
+        test_bacteria <- list_data_test_bacteria_river[[indx_test]]
+        n<-nrow(data_train)
+        
+        null <- lm(log_e.coli ~ 1, data = data_train) #model with only 1 variable
+        null1<- null
+        full <- lm(log_e.coli ~ .^2, data = data_train)
+        full1<- full
+        
+        
+        selection_5_aic <- step(null1, data = data_train ,
+                              
+                              direction = "forward",
+                              
+                              list(lower=null1, upper=full1), k = 2, steps = 5)   
+        list_selection_5_aic<- append(list_selection_5_aic, list(selection_5_aic))
+        
+        prediction_aic<- predict(object = selection_5_aic, newdata = data_test)
+        mse_step_5_aic <-mean(sqrt((test_bacteria - prediction_aic)^2))
+        list_mse_step_5_aic<- append(list_mse_step_5_aic, list(mse_step_5_aic))
+        
+        selection_5_bic <- step(null1, data = data_train ,
+                              
+                              direction = "forward",
+                              
+                              list(lower=null1, upper=full1), k = log(n) , steps = 5)   
+        list_selection_5_bic<- append(list_selection_5_bic, list(selection_5_bic))
+        prediction_bic<- predict(object = selection_5_bic, newdata = data_test)
+        mse_step_5_bic <-mean(sqrt((test_bacteria - prediction_bic)^2))
+        list_mse_step_5_bic<- append(list_mse_step_5_bic, list(mse_step_5_bic))
+        
+        
+        
+        indx_test<- indx_test+1
+      }  
+      
+      per_river_list_mse_mean_step_5_aic<- append(per_river_list_mse_mean_step_5_aic,list(list_mse_step_5_aic))
+      per_river_list_mse_mean_step_5_bic<- append(per_river_list_mse_mean_step_5_bic,list(list_mse_step_5_bic))
+      
+      mse_mean_step_5_aic <- mean(unlist(list_mse_step_5_aic))
+      mse_mean_step_5_bic <- mean(unlist(list_mse_step_5_bic))
+      
+      river_list_selection_5_aic<-append(river_list_selection_5_aic,list(list_selection_5_aic))
+      river_list_selection_5_bic<-append(river_list_selection_5_bic,list(list_selection_5_bic))
+      
+      
+      
+      river_list_mse_mean_step_5_aic<- append(river_list_mse_mean_step_5_aic,mse_mean_step_5_aic)
+      river_list_mse_mean_step_5_bic<- append(river_list_mse_mean_step_5_bic,mse_mean_step_5_bic)
+    } 
     
     
     
@@ -537,6 +619,12 @@ for(iteration in 1:15){
   }
   #prediction and mse with found models
   
+  if(do_step_5==T){
+    iteration_river_list_mse_mean_step_aic <- append(iteration_river_list_mse_mean_step_aic, list(river_list_mse_mean_step_aic))
+    iteration_river_list_mse_mean_step_bic <- append(iteration_river_list_mse_mean_step_bic, list(river_list_mse_mean_step_bic))
+    iteration_river_list_selection_aic<-append(iteration_river_list_selection_aic,list(river_list_selection_aic))
+    iteration_river_list_selection_bic<-append(iteration_river_list_selection_bic,list(river_list_selection_bic))
+  }
   
   
 }
