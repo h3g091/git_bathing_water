@@ -40,34 +40,39 @@
   river_paths5<-list(havel = "/Users/heiko.langer/Masterarbeit_lokal/Data_preprocess/Daten_Rhein_Mosel_Lahn/Rhein/DATA_preprocessed_csv")
   
   river_paths6<-list(havel = "/Users/heiko.langer/Masterarbeit_lokal/Data_preprocess/Daten_Ruhr/Ruhr/DATA_preprocessed_csv")
-  list_river_pathes<- list(river_paths1,river_paths2,river_paths3,river_paths4,river_paths5,river_paths6)
+  list_river_pathes<- list(river_paths1,river_paths2)#,river_paths3,river_paths4,river_paths5,river_paths6)
 }
 #INSTANZIERUNG
-river_list_analysis_df <- list()
 
-river_list_river_stat_tests<- list()
-river_list_sorted_modellist <-list()
-
-river_list_unique_found_formulas<-list()
-
-river_list_unique_step_formulas<-list()
-river_list_unique_lasso_formulas<-list()
-river_list_unique_rf_formulas<-list()
-river_list_unique_elnet_formulas<-list()
-
-river_list_rf_feature_occurence<- list()
-river_list_step_feature_occurence<- list()
-river_list_lasso_feature_occurence<- list()
-river_list_elnet_feature_occurence<- list()
-
-river_list_df_all_algorithms_with_mse_on_test<-list()
-river_list_stanarm_fits<-list()
-
+{
+  river_list_analysis_df <- list()
+  
+  river_list_river_stat_tests<- list()
+  river_list_sorted_modellist <-list()
+  
+  river_list_unique_found_formulas<-list()
+  
+  river_list_unique_step_formulas<-list()
+  river_list_unique_lasso_formulas<-list()
+  river_list_unique_rf_formulas<-list()
+  river_list_unique_elnet_formulas<-list()
+  
+  river_list_rf_feature_occurence<- list()
+  river_list_step_feature_occurence<- list()
+  river_list_lasso_feature_occurence<- list()
+  river_list_elnet_feature_occurence<- list()
+  
+  river_list_df_all_algorithms_with_mse_on_test<-list()
+  river_list_stanarm_fits<-list()
+  river_list_mse_mean_step_aic<-list()
+  river_list_mse_mean_step_bic<-list()
+  river_list_mse_mean_rf<-list()
+}
 
 for (river_path_river in list_river_pathes) {
   river_paths<-river_path_river
   
-  #river_paths<- river_paths1
+  #river_paths<- list_river_pathes[[1]]
   {
     calc_t <- function (datalist=river_data$havel, onlysummer) {
       #heiko
@@ -196,7 +201,7 @@ for (river_path_river in list_river_pathes) {
       })  
     }
     #run here
-    iterations <-2
+    iterations <-1
     new_train_test_split <-T
     
     set.seed(iterations)
@@ -218,12 +223,14 @@ for (river_path_river in list_river_pathes) {
     
     if(new_train_test_split ==T){
       foldid=sample(rep(seq(5),length=nrow(data)))  #fixes the train/test for cv.glmnet
+      #length(foldid)
       train_rows<- list()
+      test_rows<- list()
       for (fold in 1:5) {
-        train_rows[[fold]]<-datapoints[foldid!=fold]  
+        train_rows[[fold]]<-datapoints[foldid!=fold] 
+        test_rows[[fold]]<-datapoints[foldid==fold] 
       }
     }
-    
     
     full_1 <- lm(log_e.coli ~ .^2, data = data) #only for df_with_all_variable_names
     df_with_all_variable_names <- model.matrix(full_1, data)
@@ -254,9 +261,28 @@ for (river_path_river in list_river_pathes) {
     elnet_features_occurence<-build_rename_cols_to_variable_names(df_with_all_variable_names)
     
     list_river_stat_tests<-list()
+    
+    list_data_train <- list()
+    list_data_test <- list()
+    list_data_train_bacteria <- list()
+    list_data_test_bacteria<- list()
+    
+    list_model_matrix_train<- list()
+    list_model_matrix_train_sparse<-list()
+    
+    list_selection_aic<-  list()
+    list_mse_step_aic<-list()
+    list_selection_bic<-  list()
+    list_mse_step_bic<-list()
+    
+    list_mse_rf <- list()
+    list_rf_Model <- list()
+    
+    
+    
     #feature selection
     for (indx_fold in 1:length(train_rows)) {
-
+    #indx_fold<-1
       #instanzierung dataframes for coefficients
       {
         rf_df_1_coef <- build_rename_cols_to_variable_names(df_with_all_variable_names)
@@ -289,38 +315,106 @@ for (river_path_river in list_river_pathes) {
       #train_data fold
       data_train <- data[train_rows[[indx_fold]],]
       data_train <-data.frame(scale(data_train))
+      list_data_train<- append(list_data_train, list(data_train))
+      
       #test_data fold
       data_test <- data[-train_rows[[indx_fold]],]
       data_test <-data.frame(scale(data_test))
       
-      train_bacteria <- data_train$log_e.coli
-      test_bacteria <- data_test$log_e.coli
       
+      list_data_test<- append(list_data_test, list(data_test))
+      
+      train_bacteria <- data_train$log_e.coli
+      list_data_train_bacteria<- append(list_data_train_bacteria, list(train_bacteria))
+      
+      test_bacteria <- data_test$log_e.coli
+      list_data_test_bacteria<- append(list_data_test_bacteria, list(test_bacteria))
       
       bacteria<-names(data_train)[1]
       form<-formula(paste(bacteria," ~ .^2"))
       
       null <- lm(log_e.coli ~ 1, data = data_train) #model with only 1 variable
+      full_no_interaction <- lm(log_e.coli ~ ., data = data_train)
       full <- lm(log_e.coli ~ .^2, data = data_train)
       
       
       train <- model.matrix(full, data_train)
+      
+      list_model_matrix_train<- append(list_model_matrix_train, list(train))
+      
       train_sparse <- sparse.model.matrix(full, data_train) #data must be dataframe
+      list_model_matrix_train_sparse<- append(list_model_matrix_train_sparse, list(train_sparse))
       
       df_with_all_variable_names <-train
       iteration_name<-paste("iterations", iterations,"fold",indx_fold,sep = "_")
-      
-      do_selection<-T
+       
+do_selection<-T
+#feature_selection_step
       if (do_selection ==T) {
         
+      do_step<-T
+      if (do_step==T){
+        {
+        
+          do_step_full<-F
+          if (do_step_full==T) {
+            
+          
+        null1<- null
+        full1<- full
+        indx_test<- 1
+        #for(entry in list_data_train){
+          #entry <- list_data_train[[1]]
+          #data_train<- entry
+          #data_test <- list_data_test[[indx_test]]
+          #test_bacteria <- list_data_test_bacteria[[indx_test]]
+          n<-nrow(data_train)
+          
+          #null <- lm(log_e.coli ~ 1, data = data_train) #model with only 1 variable
+          #null1<- null
+          #full <- lm(log_e.coli ~ .^2, data = data_train)
+          #full1<- full
+          selection_aic <- step(null1, data = data_train ,
+                                
+                                direction = "forward",
+                                
+                                list(lower=null1, upper=full1), k = 2)   
+          list_selection_aic<- append(list_selection_aic, list(selection_aic))
+          
+          prediction_aic<- predict(object = selection_aic, newdata = data_test)
+          mse_step_aic <-mean(sqrt((test_bacteria - prediction_aic)^2))
+          list_mse_step_aic<- append(list_mse_step_aic, list(mse_step_aic))
+          
+          selection_bic <- step(null1, data = data_train ,
+                                
+                                direction = "forward",
+                                
+                                list(lower=null1, upper=full1), k = log(n) )   
+          list_selection_bic<- append(list_selection_bic, list(selection_bic))
+          prediction_bic<- predict(object = selection_bic, newdata = data_test)
+          mse_step_bic <-mean(sqrt((test_bacteria - prediction_bic)^2))
+          list_mse_step_bic<- append(list_mse_step_bic, list(mse_step_bic))
+          #fmla[[i]] <- as.list(selection[[i]]$call)$formula
+          indx_test<- indx_test+1
+        }  
+        
+        
+        
+        }
       
-      #feature_selection_step
+        
+        
+        do_step_5_coef<-F
+        if (do_step_5_coef==T){
+            
+
+      
       {
         stepwise <- function (river, pattern, data1, null1, full1 ){
           # Definition maximum number of steps
           
           nsteps <- 5 #ifelse(round(nrow(data)/10) < 10, round(nrow(data)/10), 5 )
-          
+          #nsteps <- 20
           selection <- list()
           
           fmla <- list()
@@ -338,7 +432,7 @@ for (river_path_river in list_river_pathes) {
                                    
                                    direction = "forward",
                                    
-                                   list(lower=null1, upper=full1), steps = i)   
+                                   list(lower=null1, upper=full1), steps = i, k = 2)   
             
             
             fmla[[i]] <- as.list(selection[[i]]$call)$formula
@@ -358,6 +452,7 @@ for (river_path_river in list_river_pathes) {
       step_returns <- stepwise(river = river, pattern = "(i_mean|q_mean_mean|r_mean_mean|ka_mean_mean)", data = data_train ,null, full)
       fmla <- step_returns[[1]]
       selection <- step_returns[[2]]
+      ste_fmla <- step_returns[[1]]
       {  
         step_model_1<-step_returns[[2]][[1]]
         step_model_2<-step_returns[[2]][[2]]
@@ -490,11 +585,59 @@ for (river_path_river in list_river_pathes) {
         
         list_unique_step_formulas <- unique(unlist(append(list_unique_step_formulas, list(unique_step_formulas))))
       }
+      
+      }
+      
+      }
       #step selection ende
       
       
-      #rf_selection
       
+      #rf_selection
+      #rf_full
+      do_rf<- T
+      if (do_rf==T) {
+        
+      
+      {
+
+      
+      #indx_test<-1
+        
+        full_no_interaction <- lm(log_e.coli ~ ., data = data_train)
+        full_no_interaction_test <- lm(log_e.coli ~ ., data = data_test)
+        train_rf <- model.matrix(full_no_interaction, data_train)
+        train_bacteria<- data_train$log_e.coli
+        
+        test_rf <- model.matrix(full_no_interaction_test, data_test)
+       
+        train_test<- data_test$log_e.coli
+        rfModel<-randomForest(train_rf, y = train_bacteria, na.rm =T, keep.forest = T) 
+        
+        #names(data_train)
+        #names(data_test)
+        
+        
+        list_rf_Model<- append(list_rf_Model, list(rfModel))
+       
+        prediction_rf<- predict(object=rfModel, newdata = test_rf)
+        mse_rf <-mean(sqrt((test_bacteria - prediction_rf)^2))
+        list_mse_rf<- append(list_mse_rf, list(mse_rf))
+        
+        
+        
+        #indx_test<- indx_test+1
+      }  
+            
+      
+      }
+
+do_rf_5_coef_importance<- F
+if (do_rf_5_coef_importance==T) {
+  
+
+      #rf_5_coef_importance
+      {
       rfModel<-randomForest(train, y = train_bacteria, na.rm =T, keep.forest = T) 
       
       #most_selected_features_by random_forest with importance
@@ -568,7 +711,8 @@ for (river_path_river in list_river_pathes) {
         list_unique_rf_formulas <- unique(unlist(append(list_unique_rf_formulas, list(unique_rf_formulas))))
         
       }
-      
+      }
+}
       #rf_selection ende
       
       {
@@ -623,7 +767,11 @@ for (river_path_river in list_river_pathes) {
           return(u)
         }
       }
+
+
       #lasso
+    do_lasso <-F
+    if(do_lasso ==T){
       fit_lasso_base <- glmnet(train_sparse,data_train$log_e.coli,type.measure="mse", alpha=1, family="gaussian",relax = F)#--> alpha =1:  lasso regressio)
       
       
@@ -670,10 +818,12 @@ for (river_path_river in list_river_pathes) {
       unique_lasso_formulas<-unique(unlist(list(lasso_df_1_coef_save$formel,lasso_df_2_coef_save$formel,lasso_df_3_coef_save$formel,lasso_df_4_coef_save$formel,lasso_df_5_coef_save$formel)))
       
       list_unique_lasso_formulas <- unique(unlist(append(list_unique_lasso_formulas, list(unique_lasso_formulas))))
-      
+    }
       #end lasso
       
       #elnet
+    do_elnet <-F
+    if(do_elnet ==T){
       fit_elnet_base <- glmnet(train_sparse,data_train$log_e.coli,type.measure="mse", alpha=0.5, family="gaussian",relax = F)#--> alpha =1:  lasso regressio)
       
       #search formulas for 2 coef
@@ -709,6 +859,7 @@ for (river_path_river in list_river_pathes) {
       unique_elnet_formulas<-unique(unlist(list(elnet_df_1_coef_save$formel,elnet_df_2_coef_save$formel,elnet_df_3_coef_save$formel,elnet_df_4_coef_save$formel,elnet_df_5_coef_save$formel)))
       
       list_unique_elnet_formulas <- unique(unlist(append(list_unique_elnet_formulas, list(unique_elnet_formulas))))
+    }
       #end elnet
       
       }
@@ -717,18 +868,34 @@ for (river_path_river in list_river_pathes) {
       
       
     }
-    do_cv_glmnet<- F
+    do_cv_glmnet<- T
     if (do_cv_glmnet ==T)
     {
     full_cv <- lm(log_e.coli ~ .^2, data = data)
     train_sparse_cv <- sparse.model.matrix(full_cv, data)
-    #fitting lasso
-    fit_lasso_base_cross_stand <- cv.glmnet(train_sparse_cv, data$log_e.coli,type.measure="mse", alpha=1, family="gaussian",  nfolds = 5,standardize = T,relax = F, foldid = foldid)#--> alpha =1:  lasso regressio
-    fit_lasso_base_cross_stand_relax <- cv.glmnet(train_sparse_cv, data$log_e.coli,type.measure="mse", alpha=1, family="gaussian",  nfolds = 5,standardize = T,relax = T, foldid = foldid)#--> alpha =1:  lasso regressio
-    #fitting elnet
-    fit_elnet_base_cross_stand <- cv.glmnet(train_sparse_cv, data$log_e.coli,type.measure="mse", alpha=0.5, family="gaussian",  nfolds = 5,standardize = T,relax = F, foldid = foldid)#--> alpha =1:  lasso regressio
-    fit_elnet_base_cross_stand_relax <- cv.glmnet(train_sparse_cv, data$log_e.coli,type.measure="mse", alpha=0.5, family="gaussian",  nfolds = 5,standardize = T,relax = T, foldid = foldid)#--> alpha =1:  lasso regressio
+    train_sparse_cv_stand <- sparse.model.matrix(full_cv, scale(data))
     
+    
+    #fitting lasso
+    fit_lasso_base_cross_stand <- cv.glmnet(train_sparse_cv, data$log_e.coli,type.measure="mse", alpha=1,  nfolds = 5,standardize = T,relax = F, foldid = foldid)#--> alpha =1:  lasso regressio
+    fit_lasso_base_cross_stand_mse_min <- fit_lasso_base_cross_stand$cvm[fit_lasso_base_cross_stand$lambda == fit_lasso_base_cross_stand$lambda.min]
+    fit_lasso_base_cross_stand_mse_1se <- fit_lasso_base_cross_stand$cvm[fit_lasso_base_cross_stand$lambda == fit_lasso_base_cross_stand$lambda.1se]
+    fit_lasso_base_cross_stand$
+    #fit_lasso_base_cross_stand_relax <- cv.glmnet(train_sparse_cv, data$log_e.coli,type.measure="mse", alpha=1, family="gaussian",  nfolds = 5,standardize = T,relax = T, foldid = foldid)#--> alpha =1:  lasso regressio
+    #fit_lasso_base_cross_stand_relax_mse_min <- fit_lasso_base_cross_stand_relax$cvm[fit_lasso_base_cross_stand_relax$lambda == fit_lasso_base_cross_stand_relax$lambda.min]
+    #fit_lasso_base_cross_stand_relax_mse_1se <- fit_lasso_base_cross_stand_relax$cvm[fit_lasso_base_cross_stand_relax$lambda == fit_lasso_base_cross_stand_relax$lambda.1se]
+    
+    
+    #fitting elnet
+    fit_elnet_base_cross_stand <- cv.glmnet(train_sparse_cv, data$log_e.coli,type.measure="mse", alpha=0.5, family="gaussian",  nfolds = 5,standardize = T,relax = F, foldid = foldid)#--> alpha =0.5:  elnet regressio
+    fit_elnet_base_cross_stand_mse_min <- fit_elnet_base_cross_stand$cvm[fit_elnet_base_cross_stand$lambda == fit_elnet_base_cross_stand$lambda.min]
+    fit_elnet_base_cross_stand_mse_1se <- fit_elnet_base_cross_stand$cvm[fit_elnet_base_cross_stand$lambda == fit_elnet_base_cross_stand$lambda.1se]
+    
+    
+    #fit_elnet_base_cross_stand_relax <- cv.glmnet(train_sparse_cv, data$log_e.coli,type.measure="mse", alpha=0.5, family="gaussian",  nfolds = 5,standardize = T,relax = T, foldid = foldid)#--> alpha =1:  elnet regressio
+    
+    
+    {
     get_cv_glmnet_found_formulas_lambda_1se_and_lambda_min <- function(cv_glmnet_fit){
       #cv_glmnet_fit<-fit_lasso_base_cross_stand
       cv_glmnet_fit_coeffs_lambda_min <- coef(cv_glmnet_fit, s = "lambda.min")
@@ -746,7 +913,7 @@ for (river_path_river in list_river_pathes) {
       return(formel_list)
       
     }
-    
+    }
     #add elnet and lasso coeffs from  cv_glmnet lambda min and lmabda se
    
     coef_fit_lasso_base_cross_stand<-get_cv_glmnet_found_formulas_lambda_1se_and_lambda_min(fit_lasso_base_cross_stand)
@@ -765,6 +932,16 @@ for (river_path_river in list_river_pathes) {
     
     }
     
+    mse_mean_step_aic <- mean(unlist(list_mse_step_aic))
+    mse_mean_step_bic <- mean(unlist(list_mse_step_bic))
+    
+    river_list_mse_mean_step_aic<- append(river_list_mse_mean_step_aic,list(mse_mean_step_aic))
+    river_list_mse_mean_step_bic<- append(river_list_mse_mean_step_bic,list(mse_mean_step_bic))
+    
+    
+    mse_mean_rf <- mean(unlist(list_mse_rf))
+    river_list_mse_mean_rf<- append(river_list_mse_mean_rf,list(mse_mean_rf))
+    
     
     
     #save all formulas from acual river
@@ -772,7 +949,7 @@ for (river_path_river in list_river_pathes) {
     river_list_unique_lasso_formulas<-append(river_list_unique_lasso_formulas,list(list_unique_lasso_formulas))
     river_list_unique_rf_formulas<-append(river_list_unique_rf_formulas,list(list_unique_rf_formulas))
     river_list_unique_elnet_formulas<-append(river_list_unique_elnet_formulas,list(list_unique_elnet_formulas))
-
+    
     #all unique formulas
     all_unique_selected_formulas <- unique(unlist(list(list_unique_step_formulas,list_unique_rf_formulas,list_unique_lasso_formulas, list_unique_elnet_formulas)))
     
@@ -809,7 +986,8 @@ for (river_path_river in list_river_pathes) {
       list_unqiue_formulas_all_algorithms_coef_3 <-unique(unlist(list(rf_df_3_coef_save$formel ,step_df_3_coef_save$formel,lasso_df_3_coef_save$formel,elnet_df_3_coef_save$formel )))
       list_unqiue_formulas_all_algorithms_coef_4 <-unique(unlist(list(rf_df_4_coef_save$formel ,step_df_4_coef_save$formel,lasso_df_4_coef_save$formel,elnet_df_4_coef_save$formel )))
       list_unqiue_formulas_all_algorithms_coef_5 <-unique(unlist(list(rf_df_5_coef_save$formel ,step_df_5_coef_save$formel,lasso_df_5_coef_save$formel,elnet_df_5_coef_save$formel )))
-      
+      do_mse<-F
+      if(do_mse==T){
       {
         calc_mse_for_unique_formulas_with_test_set<-function(list_unqiue_formulas_all_algorithms){
           
@@ -861,6 +1039,7 @@ for (river_path_river in list_river_pathes) {
         
       }
       
+      
       #do mse
       mse_adj_r_2_fold_1<-as.data.frame(list_df_mse_adj_r_squared_all_algorithms[[1]])
       mse_adj_r_2_fold_2<-as.data.frame(list_df_mse_adj_r_squared_all_algorithms[[2]])
@@ -887,10 +1066,10 @@ for (river_path_river in list_river_pathes) {
       
       
       
-      df_all_algorithms_with_mse_on_test$step <-F
-      df_all_algorithms_with_mse_on_test$rf <-F
-      df_all_algorithms_with_mse_on_test$lasso <-F
-      df_all_algorithms_with_mse_on_test$elnet <-F
+      df_all_algorithms_with_mse_on_test$step_formula <-F
+      df_all_algorithms_with_mse_on_test$rf_formula <-F
+      df_all_algorithms_with_mse_on_test$lasso_formula <-F
+      df_all_algorithms_with_mse_on_test$elnet_formula <-F
       #df_all_algorithms_with_mse_on_test$indx_fold<- indx_fold
       
       
@@ -903,7 +1082,7 @@ for (river_path_river in list_river_pathes) {
         for (idx in 1:nrow(df_all_algorithms_with_mse_on_test)) {
           #idx<-1
           if (df_all_algorithms_with_mse_on_test$formula_with_lowest_mse_on_test[idx]== unique_rf_formulas[jdx]) {
-            df_all_algorithms_with_mse_on_test$rf[idx]<- T
+            df_all_algorithms_with_mse_on_test$rf_formula[idx]<- T
             
             
           }
@@ -917,7 +1096,7 @@ for (river_path_river in list_river_pathes) {
         for (idx in 1:nrow(df_all_algorithms_with_mse_on_test)) {
           #idx<-1
           if (df_all_algorithms_with_mse_on_test$formula_with_lowest_mse_on_test[idx]== unique_lasso_formulas[jdx]) {
-            df_all_algorithms_with_mse_on_test$lasso[idx]<- T
+            df_all_algorithms_with_mse_on_test$lasso_formula[idx]<- T
             
             
           }
@@ -931,7 +1110,7 @@ for (river_path_river in list_river_pathes) {
         for (idx in 1:nrow(df_all_algorithms_with_mse_on_test)) {
           #idx<-1
           if (df_all_algorithms_with_mse_on_test$formula_with_lowest_mse_on_test[idx]== unique_step_formulas[jdx]) {
-            df_all_algorithms_with_mse_on_test$step[idx]<- T
+            df_all_algorithms_with_mse_on_test$step_formula[idx]<- T
             
             
           }
@@ -946,7 +1125,7 @@ for (river_path_river in list_river_pathes) {
         for (idx in 1:nrow(df_all_algorithms_with_mse_on_test)) {
           #idx<-5
           if (df_all_algorithms_with_mse_on_test$formula_with_lowest_mse_on_test[idx]== unique_elnet_formulas[jdx]) {
-            df_all_algorithms_with_mse_on_test$elnet[idx]<- T
+            df_all_algorithms_with_mse_on_test$elnet_formula[idx]<- T
           }
         }
       }
@@ -1020,11 +1199,14 @@ for (river_path_river in list_river_pathes) {
     
     
     unique_found_formulas<-all_unique_selected_formulas
-    
+}
     #end of frequentistic mse
-
+      
+  #to do mcmc delete following bracet    
+}
     #mcmc
-    do_mcmc<-T
+    do_mcmc<-F
+    {
     if (do_mcmc==T) {
       list_unqiue_formulas_all_algorithms <-unique_found_formulas
       
@@ -1185,7 +1367,7 @@ for (river_path_river in list_river_pathes) {
       
       
     }
-    
+    }
     sorted_modellist <- river_stat_tests %>%
       filter( below95 == 5 & below90 == 5& in95 ) %>%
       dplyr::arrange(desc(in50), MSE)  
